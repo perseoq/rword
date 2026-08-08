@@ -6,6 +6,7 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -18,14 +19,15 @@ from PySide6.QtWidgets import (
 
 from rword.ui.icons import IconManager
 
-_RICON = 16
+_RICON = 18
 _LICON = 28
-_CONTENT_HEIGHT = 78
-_CAPTION_HEIGHT = 16
+_CONTENT_HEIGHT = 80
+_CAPTION_HEIGHT = 18
+_SMALL_ROWS = 2
 
 
 class RibbonGroup(QWidget):
-    """Grupo de la cinta: fila de acciones con un título al pie."""
+    """Grupo de la cinta: acciones en varias filas con un título al pie."""
 
     def __init__(self, title: str, parent=None) -> None:
         super().__init__(parent)
@@ -45,6 +47,16 @@ class RibbonGroup(QWidget):
         self._layout.addWidget(self._caption)
         self.setMaximumHeight(_CONTENT_HEIGHT + _CAPTION_HEIGHT)
 
+        self._grid_host = QWidget(self)
+        self._grid = QGridLayout(self._grid_host)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setSpacing(2)
+        self._small_count = 0
+        self._grid_added = False
+
+    def _grid_cell(self):
+        return self._small_count % _SMALL_ROWS, self._small_count // _SMALL_ROWS
+
     def add_action(self, action: QAction, large: bool = False) -> QToolButton:
         button = QToolButton(self)
         button.setDefaultAction(action)
@@ -53,14 +65,20 @@ class RibbonGroup(QWidget):
                 Qt.ToolButtonStyle.ToolButtonTextUnderIcon
             )
             button.setIconSize(QSize(_LICON, _LICON))
-            button.setFixedSize(58, _CONTENT_HEIGHT - 10)
+            button.setFixedSize(58, _CONTENT_HEIGHT - 12)
             button.setStyleSheet("font-size: 9px;")
+            self._row.addWidget(button, 0, Qt.AlignmentFlag.AlignTop)
         else:
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             button.setIconSize(QSize(_RICON, _RICON))
             button.setFixedSize(_RICON + 8, _RICON + 8)
             button.setToolTip(action.text())
-        self._row.addWidget(button, 0, Qt.AlignmentFlag.AlignTop)
+            row, col = self._grid_cell()
+            self._grid.addWidget(button, row, col)
+            self._small_count += 1
+            if not self._grid_added:
+                self._row.addWidget(self._grid_host, 0, Qt.AlignmentFlag.AlignTop)
+                self._grid_added = True
         return button
 
     def add_dropdown(self, action: QAction, menu) -> QToolButton:
