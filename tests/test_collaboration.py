@@ -93,7 +93,8 @@ def test_activity_capped(editor, settings):
 
 def test_main_window_presence(main_window):
     assert hasattr(main_window, "_presence_label")
-    assert main_window._presence_label.text().startswith("●")
+    assert hasattr(main_window, "_presence_user_label")
+    assert main_window._presence_user_label.text() == "Usuario"
 
 
 def test_main_window_log_on_new(main_window):

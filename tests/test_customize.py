@@ -3,7 +3,7 @@ from PySide6.QtCore import QSettings
 
 from rword.core.plugins import PluginManager
 from rword.core.preferences import DARK_STYLESHEET, UserPreferences
-from rword.ui.dialogs.customize import TOOLBAR_ACTIONS_KEY, ShortcutsDialog
+from rword.ui.dialogs.customize import ShortcutsDialog
 
 
 @pytest.fixture
@@ -92,12 +92,12 @@ def test_main_window_preferences_dark(main_window, settings):
 
 
 def test_main_window_customize_toolbar(main_window):
-    main_window._settings.setValue(TOOLBAR_ACTIONS_KEY, ["new", "open", "save"])
-    main_window._rebuild_toolbar_from_settings()
-    actions = main_window.toolbar.actions()
-    texts = [a.text() for a in actions]
-    assert "Nuevo" in texts
-    assert "Deshacer" not in texts
+    main_window.show()
+    main_window._toggle_toolbar(False)
+    assert not main_window.ribbon.isVisible()
+    main_window._toggle_toolbar(True)
+    assert main_window.ribbon.isVisible()
+    main_window.close()
 
 
 def test_shortcuts_dialog_actions(main_window, settings):

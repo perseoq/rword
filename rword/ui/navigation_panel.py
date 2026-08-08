@@ -18,9 +18,10 @@ from rword.core import hyperlinks
 class NavigationPanel(QDockWidget):
     """Muestra títulos y marcadores para navegar por el documento."""
 
-    def __init__(self, editor, parent=None) -> None:
+    def __init__(self, editor, parent=None, icon_manager=None) -> None:
         super().__init__("Navegación", parent)
         self._editor = editor
+        self._icon_manager = icon_manager
         self.setObjectName("navigation_panel")
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea
@@ -50,8 +51,14 @@ class NavigationPanel(QDockWidget):
             return
         self._headings_list.blockSignals(True)
         self._headings_list.clear()
+        from rword.ui.icons import IconManager, icon_color_for
+
+        manager = getattr(self, "_icon_manager", None) or IconManager(
+            icon_color_for(self)
+        )
         for text, level in hyperlinks.headings(self._editor):
-            item = QListWidgetItem(f"{'  ' * (level - 1)}• {text}")
+            item = QListWidgetItem(f"{'  ' * (level - 1)}{text}")
+            item.setIcon(manager.make_icon("heading", 16))
             item.setData(256, level)
             self._headings_list.addItem(item)
         self._headings_list.blockSignals(False)
@@ -59,11 +66,13 @@ class NavigationPanel(QDockWidget):
         self._bookmarks_list.blockSignals(True)
         self._bookmarks_list.clear()
         for name in sorted(hyperlinks.bookmarks(self._editor)):
-            self._bookmarks_list.addItem(name)
+            item = QListWidgetItem(name)
+            item.setIcon(manager.make_icon("bookmark", 16))
+            self._bookmarks_list.addItem(item)
         self._bookmarks_list.blockSignals(False)
 
     def _on_heading_clicked(self, item: QListWidgetItem) -> None:
-        text = item.text().lstrip(" •")
+        text = item.text().lstrip(" ")
         default_size = self._editor.document().defaultFont().pointSizeF()
         for heading, level in hyperlinks.headings(self._editor):
             if heading == text:

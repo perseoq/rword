@@ -79,7 +79,7 @@ def test_main_window_high_contrast(main_window):
 def test_immersive_toggle(main_window):
     main_window.show()
     main_window._toggle_immersive(True)
-    assert not main_window.menuBar().isVisible()
+    assert not main_window.ribbon.isVisible()
     main_window._toggle_immersive(False)
-    assert main_window.menuBar().isVisible()
+    assert main_window.ribbon.isVisible()
     main_window.close()

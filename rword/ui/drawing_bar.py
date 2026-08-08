@@ -1,52 +1,70 @@
-"""Barra de herramientas de dibujo a mano alzada."""
+"""Controles de dibujo a mano alzada embebibles en la cinta."""
 
 from __future__ import annotations
 
+from PySide6.QtCore import QSize
 from PySide6.QtGui import QAction, QColor
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
     QSpinBox,
-    QToolBar,
+    QWidget,
 )
 
 from rword.ui.editor import Editor
 
 
-class DrawingBar(QToolBar):
-    """Barra de dibujo con lápiz, resaltador y borrador."""
+class DrawingBar(QWidget):
+    """Fila de dibujo: herramienta, grosor, color y activación."""
 
     def __init__(self, editor: Editor, parent=None) -> None:
-        super().__init__("Dibujar", parent)
-        self.setObjectName("drawing_toolbar")
-        self.setMovable(False)
+        super().__init__(parent)
         self._editor = editor
         self._color = QColor("#000000")
         self._width = 2.0
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(2, 0, 2, 0)
+        self._layout.setSpacing(4)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._build()
 
     def _build(self) -> None:
+        self._layout.addWidget(QLabel("Herramienta:", self))
         self._tool_combo = QComboBox(self)
         self._tool_combo.addItems(["Lápiz", "Pluma", "Resaltador", "Borrador"])
+        self._tool_combo.setFixedWidth(110)
         self._tool_combo.currentIndexChanged.connect(self._update_tool)
-        self.addWidget(self._tool_combo)
+        self._layout.addWidget(self._tool_combo)
 
+        self._layout.addWidget(QLabel("Grosor:", self))
         self._width_spin = QSpinBox(self)
         self._width_spin.setRange(1, 20)
         self._width_spin.setValue(2)
         self._width_spin.valueChanged.connect(self._update_width)
-        self.addWidget(self._width_spin)
+        self._layout.addWidget(self._width_spin)
 
         self.color_action = QAction("Color...", self)
         self.color_action.triggered.connect(self._choose_color)
-        self.addAction(self.color_action)
-
-        self.addSeparator()
+        self._layout.addWidget(self._action_button(self.color_action))
 
         self.enable_action = QAction("Activar dibujo", self)
         self.enable_action.setCheckable(True)
-        self.enable_action.triggered.connect(self._toggle)
-        self.addAction(self.enable_action)
+        self.enable_action.toggled.connect(self._toggle)
+        self._layout.addWidget(self._action_button(self.enable_action))
+
+    def _action_button(self, action: QAction):
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QToolButton
+
+        button = QToolButton(self)
+        button.setDefaultAction(action)
+        button.setIconSize(QSize(16, 16))
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        button.setFixedHeight(26)
+        return button
 
     def _tool_key(self) -> str:
         return {
@@ -80,6 +98,4 @@ class DrawingBar(QToolBar):
         width = self._width
         if kind == "highlighter":
             width = max(6.0, width * 2)
-        self._editor.set_drawing(
-            True, kind, self._color, self._width
-        )
+        self._editor.set_drawing(True, kind, self._color, self._width)

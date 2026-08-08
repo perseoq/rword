@@ -15,9 +15,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QSplitter,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -26,12 +26,10 @@ from rword.config import (
     ALL_FILES_FILTER,
     APP_NAME,
     APP_VERSION,
-    FORMATBAR_VISIBLE_KEY,
     HTML_FILTER,
-    PARAGRAPHBAR_VISIBLE_KEY,
+    RIBBON_VISIBLE_KEY,
     STATUSBAR_VISIBLE_KEY,
     TEXT_FILTER,
-    TOOLBAR_VISIBLE_KEY,
     WINDOW_GEOMETRY_KEY,
     WINDOW_STATE_KEY,
 )
@@ -44,6 +42,11 @@ from rword.core.export import (
     export_pdf,
     export_rtf,
     export_text,
+)
+from rword.core.margin_templates import (
+    STANDARD_TEMPLATES,
+    MarginTemplateStore,
+    apply_margins,
 )
 from rword.core.pages import apply_page_setup, current_page_setup
 from rword.core.preferences import DARK_STYLESHEET
@@ -58,6 +61,10 @@ from rword.ui.dialogs.go_to import GoToDialog
 from rword.ui.dialogs.header_footer import HeaderFooterDialog
 from rword.ui.dialogs.image import AdjustDialog, CropDialog, ImageSizeDialog
 from rword.ui.dialogs.insert_table import InsertTableDialog
+from rword.ui.dialogs.margin_templates import (
+    MarginTemplateManagerDialog,
+    SaveMarginTemplateDialog,
+)
 from rword.ui.dialogs.objects import (
     ChartDialog,
     EquationDialog,
@@ -73,8 +80,10 @@ from rword.ui.dialogs.thesaurus import ThesaurusDialog
 from rword.ui.drawing_bar import DrawingBar
 from rword.ui.editor import Editor
 from rword.ui.format_bar import FormatBar
+from rword.ui.icons import IconManager, icon_color_for
 from rword.ui.navigation_panel import NavigationPanel
 from rword.ui.paragraph_bar import ParagraphBar
+from rword.ui.ribbon import RibbonBar
 
 FILE_DIALOG_FILTER = f"{TEXT_FILTER};;{HTML_FILTER};;{ALL_FILES_FILTER}"
 
@@ -127,8 +136,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._central)
         self._splitter: QSplitter | None = None
         self._build_actions()
-        self._build_menus()
-        self._build_toolbar()
+        self._icon_manager = IconManager(icon_color_for(self))
+        self._margin_store = MarginTemplateStore(self._settings)
+        self._build_ribbon()
         self._build_statusbar()
         self._new_document()
         self._connect_editor_signals()
@@ -451,6 +461,25 @@ class MainWindow(QMainWindow):
         self.columns_one_action = self._columns_action("Una columna", 1)
         self.columns_two_action = self._columns_action("Dos columnas", 2)
         self.columns_three_action = self._columns_action("Tres columnas", 3)
+        self.columns_more_action = QAction("Más columnas...", self)
+        self.columns_more_action.triggered.connect(self._columns_more)
+
+        self.page_color_action = QAction("Color de página...", self)
+        self.page_color_action.triggered.connect(self._choose_page_color)
+
+        self.save_margin_template_action = QAction(
+            "Guardar márgenes como plantilla...", self
+        )
+        self.save_margin_template_action.triggered.connect(
+            self._save_margin_template
+        )
+
+        self.manage_margin_templates_action = QAction(
+            "Administrar plantillas de márgenes...", self
+        )
+        self.manage_margin_templates_action.triggered.connect(
+            self._manage_margin_templates
+        )
 
         self.line_numbers_action = QAction("Numeración de líneas", self)
         self.line_numbers_action.setCheckable(True)
@@ -665,8 +694,8 @@ class MainWindow(QMainWindow):
             lambda: self._insert_field("PAGE")
         )
 
-        self.date_field_action = QAction("Fecha automática", self)
-        self.date_field_action.triggered.connect(
+        self.auto_date_field_action = QAction("Fecha automática", self)
+        self.auto_date_field_action.triggered.connect(
             lambda: self._insert_field("DATE")
         )
 
@@ -992,8 +1021,6 @@ class MainWindow(QMainWindow):
         self.preferences_action = QAction("Preferencias...", self)
         self.preferences_action.triggered.connect(self._show_preferences)
 
-        self.customize_toolbar_action = QAction("Personalizar barra de herramientas...", self)
-        self.customize_toolbar_action.triggered.connect(self._customize_toolbar)
 
         self.shortcuts_action = QAction("Atajos de teclado...", self)
         self.shortcuts_action.triggered.connect(self._show_shortcuts)
@@ -1281,7 +1308,7 @@ class MainWindow(QMainWindow):
             )
             self.agents_actions[label] = action
 
-        self.toggle_toolbar_action = QAction("Barra de herramientas", self)
+        self.toggle_toolbar_action = QAction("Cinta de opciones", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self._toggle_toolbar)
@@ -1309,476 +1336,465 @@ class MainWindow(QMainWindow):
         self.about_action = QAction("Acerca de rword", self)
         self.about_action.triggered.connect(self._show_about)
 
-    def _build_menus(self) -> None:
-        file_menu = self.menuBar().addMenu("&Archivo")
-        file_menu.addAction(self.new_action)
-        file_menu.addAction(self.open_action)
-        file_menu.addAction(self.save_action)
-        file_menu.addAction(self.save_as_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.close_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.print_action)
-        file_menu.addAction(self.print_preview_action)
-        export_menu = file_menu.addMenu("&Exportar")
-        export_menu.addAction(self.export_pdf_action)
-        export_menu.addAction(self.export_html_action)
-        export_menu.addAction(self.export_rtf_action)
-        export_menu.addAction(self.export_odt_action)
-        export_menu.addAction(self.export_epub_action)
-        export_menu.addAction(self.export_text_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.quit_action)
+    def _ribbon_button(self, group, action, icon_name, large=False):
+        self._icon_manager.register(action, icon_name, 32 if large else 16)
+        return group.add_action(action, large=large)
 
-        edit_menu = self.menuBar().addMenu("&Edición")
-        edit_menu.addAction(self.undo_action)
-        edit_menu.addAction(self.redo_action)
-        edit_menu.addSeparator()
-        edit_menu.addAction(self.cut_action)
-        edit_menu.addAction(self.copy_action)
-        edit_menu.addAction(self.paste_action)
-        self.clipboard_menu = edit_menu.addMenu("&Portapapeles")
+    def _ribbon_dropdown(self, group, label, icon_name, menu):
+        action = QAction(label, self)
+        self._icon_manager.register(action, icon_name, 16)
+        return group.add_dropdown(action, menu)
+
+    def _build_ribbon(self) -> None:
+        self.ribbon = RibbonBar(self._icon_manager, self)
+        self.setMenuWidget(self.ribbon)
+        self._build_dynamic_menus()
+        self._build_tab_inicio()
+        self._build_tab_insertar()
+        self._build_tab_diseno()
+        self._build_tab_referencias()
+        self._build_tab_revision()
+        self._build_tab_vista()
+        self._build_tab_correspondencia()
+        self._build_tab_automatizacion()
+        self._build_tab_colab_seguridad()
+        self._build_tab_accesibilidad()
+        self._build_tab_ia()
+        self._build_tab_ayuda()
+        self.ribbon.set_current_tab(0)
+
+    def _build_dynamic_menus(self) -> None:
+        self.clipboard_menu = QMenu("Portapapeles", self)
         self._rebuild_clipboard_menu()
-        edit_menu.addSeparator()
-        edit_menu.addAction(self.find_action)
-        edit_menu.addAction(self.find_next_action)
-        edit_menu.addAction(self.find_previous_action)
-        edit_menu.addAction(self.replace_action)
-        edit_menu.addAction(self.go_to_action)
-        edit_menu.addSeparator()
-        select_menu = edit_menu.addMenu("&Seleccionar")
-        select_menu.addAction(self.select_word_action)
-        select_menu.addAction(self.select_line_action)
-        select_menu.addAction(self.select_paragraph_action)
-        select_menu.addAction(self.select_all_action)
-
-        format_menu = self.menuBar().addMenu("&Formato")
-        format_menu.addAction(self.font_action)
-        format_menu.addSeparator()
-        format_menu.addAction(self.bold_action)
-        format_menu.addAction(self.italic_action)
-        format_menu.addAction(self.underline_action)
-        format_menu.addAction(self.strike_action)
-        format_menu.addAction(self.superscript_action)
-        format_menu.addAction(self.subscript_action)
-        format_menu.addSeparator()
-        format_menu.addAction(self.grow_font_action)
-        format_menu.addAction(self.shrink_font_action)
-        format_menu.addSeparator()
-        format_menu.addAction(self.text_color_action)
-        format_menu.addAction(self.highlight_action)
-        spacing_menu = format_menu.addMenu("Espaciado entre &caracteres")
-        spacing_menu.addAction(self.letter_spacing_normal_action)
-        spacing_menu.addAction(self.letter_spacing_more_action)
-        spacing_menu.addAction(self.letter_spacing_less_action)
-        case_menu = format_menu.addMenu("&Mayúsculas")
-        case_menu.addAction(self.case_sentence_action)
-        case_menu.addAction(self.case_lower_action)
-        case_menu.addAction(self.case_upper_action)
-        case_menu.addAction(self.case_title_action)
-        case_menu.addAction(self.case_toggle_action)
-        format_menu.addSeparator()
-        format_menu.addAction(self.clear_format_action)
-        paragraph_menu = format_menu.addMenu("&Párrafo")
-        paragraph_menu.addAction(self.paragraph_dialog_action)
-        paragraph_menu.addSeparator()
-        paragraph_menu.addAction(self.align_left_action)
-        paragraph_menu.addAction(self.align_center_action)
-        paragraph_menu.addAction(self.align_right_action)
-        paragraph_menu.addAction(self.align_justify_action)
-        paragraph_menu.addSeparator()
-        paragraph_menu.addAction(self.indent_more_action)
-        paragraph_menu.addAction(self.indent_less_action)
-        paragraph_menu.addSeparator()
-        paragraph_menu.addAction(self.bullets_action)
-        paragraph_menu.addAction(self.numbering_action)
-        paragraph_menu.addSeparator()
-        paragraph_menu.addAction(self.spacing_single_action)
-        paragraph_menu.addAction(self.spacing_1_5_action)
-        paragraph_menu.addAction(self.spacing_double_action)
-        paragraph_menu.addSeparator()
-        paragraph_menu.addAction(self.shading_clear_action)
-
-        page_menu = format_menu.addMenu("&Página")
-        page_menu.addAction(self.page_setup_action)
-        page_menu.addSeparator()
-        page_menu.addAction(self.page_break_action)
-        page_menu.addAction(self.section_break_action)
-        page_menu.addSeparator()
-        columns_menu = page_menu.addMenu("&Columnas")
-        columns_menu.addAction(self.columns_one_action)
-        columns_menu.addAction(self.columns_two_action)
-        columns_menu.addAction(self.columns_three_action)
-        page_menu.addSeparator()
-        page_menu.addAction(self.line_numbers_action)
-        page_menu.addAction(self.watermark_action)
-
-        styles_menu = self.menuBar().addMenu("&Estilos")
-        self.styles_menu = styles_menu
-        styles_menu.aboutToShow.connect(self._rebuild_styles_menu)
-        styles_menu.addAction(self.create_style_action)
-        styles_menu.addAction(self.modify_style_action)
-        styles_menu.addAction(self.organizer_action)
-        styles_menu.addSeparator()
-        styles_menu.addAction(self.painter_action)
-
-        table_menu = self.menuBar().addMenu("&Tabla")
-        table_menu.addAction(self.insert_table_action)
-        table_menu.addAction(self.convert_text_to_table_action)
-        table_menu.addAction(self.table_to_text_action)
-        table_menu.addSeparator()
-        rows_menu = table_menu.addMenu("&Filas")
-        rows_menu.addAction(self.add_row_above_action)
-        rows_menu.addAction(self.add_row_below_action)
-        rows_menu.addAction(self.delete_row_action)
-        cols_menu = table_menu.addMenu("&Columnas")
-        cols_menu.addAction(self.add_column_left_action)
-        cols_menu.addAction(self.add_column_right_action)
-        cols_menu.addAction(self.delete_column_action)
-        cells_menu = table_menu.addMenu("&Celdas")
-        cells_menu.addAction(self.merge_cells_action)
-        cells_menu.addAction(self.split_cell_action)
-        cells_menu.addAction(self.shade_cells_action)
-        table_menu.addSeparator()
-        table_menu.addAction(self.delete_table_action)
-        table_menu.addAction(self.split_table_action)
-        table_menu.addSeparator()
-        select_menu = table_menu.addMenu("&Seleccionar")
-        select_menu.addAction(self.select_row_action)
-        select_menu.addAction(self.select_column_action)
-        select_menu.addAction(self.select_table_action)
-        table_menu.addSeparator()
-        table_menu.addAction(self.autofit_action)
-        table_menu.addAction(self.distribute_rows_action)
-        table_menu.addAction(self.distribute_columns_action)
-        table_menu.addAction(self.border_table_action)
-        style_menu = table_menu.addMenu("&Estilos de tabla")
-        for action in self.table_styles_actions.values():
-            style_menu.addAction(action)
-        table_menu.addSeparator()
-        table_menu.addAction(self.sort_asc_action)
-        table_menu.addAction(self.sort_desc_action)
-        formula_menu = table_menu.addMenu("&Fórmula")
-        formula_menu.addAction(self.sum_formula_action)
-        formula_menu.addAction(self.average_formula_action)
-        formula_menu.addAction(self.count_formula_action)
-        table_menu.addSeparator()
-        table_menu.addAction(self.heading_repeat_action)
-
-        image_menu = self.menuBar().addMenu("&Imagen")
-        image_menu.addAction(self.insert_image_action)
-        image_menu.addSeparator()
-        image_menu.addAction(self.image_size_action)
-        image_menu.addAction(self.image_crop_action)
-        rotate_menu = image_menu.addMenu("&Girar")
-        rotate_menu.addAction(self.image_rotate_90_action)
-        rotate_menu.addAction(self.image_rotate_180_action)
-        rotate_menu.addAction(self.image_rotate_270_action)
-        flip_menu = image_menu.addMenu("&Voltear")
-        flip_menu.addAction(self.image_flip_h_action)
-        flip_menu.addAction(self.image_flip_v_action)
-        image_menu.addSeparator()
-        image_menu.addAction(self.image_adjust_action)
-        image_menu.addAction(self.image_grayscale_action)
-        image_menu.addAction(self.image_sepia_action)
-        image_menu.addSeparator()
-        image_menu.addAction(self.image_replace_action)
-        image_menu.addAction(self.image_delete_action)
-
-        shapes_menu = self.menuBar().addMenu("&Formas")
-        shapes_menu.addAction(self.shape_dialog_action)
-        shapes_menu.addSeparator()
+        self.styles_menu = QMenu("Estilos", self)
+        self.styles_menu.aboutToShow.connect(self._rebuild_styles_menu)
+        self.theme_menu = QMenu("Tema", self)
+        self.theme_menu.aboutToShow.connect(self._rebuild_theme_menu)
+        self.automation_menu = QMenu("Macros", self)
+        self.automation_menu.aboutToShow.connect(self._rebuild_macro_shortcuts)
+        self.field_menu = QMenu("Insertar campo", self)
+        self.field_menu.aboutToShow.connect(self._rebuild_field_menu)
+        self.margins_menu = QMenu("Márgenes", self)
+        self.margins_menu.aboutToShow.connect(self._rebuild_margins_menu)
+        self.shapes_menu = QMenu("Formas", self)
         for action in self.shape_actions.values():
-            shapes_menu.addAction(action)
-        shapes_menu.addSeparator()
-        shapes_menu.addAction(self.text_box_action)
-        shapes_menu.addAction(self.wordart_action)
+            self.shapes_menu.addAction(action)
+        self.shapes_menu.addSeparator()
+        self.shapes_menu.addAction(self.text_box_action)
+        self.shapes_menu.addAction(self.wordart_action)
 
-        insert_menu = self.menuBar().addMenu("&Insertar")
-        insert_menu.addAction(self.insert_table_action)
-        insert_menu.addAction(self.insert_image_action)
-        insert_menu.addAction(self.text_box_action)
-        insert_menu.addAction(self.wordart_action)
-        insert_menu.addSeparator()
-        insert_menu.addAction(self.symbol_action)
-        insert_menu.addAction(self.equation_action)
-        insert_menu.addAction(self.chart_action)
-        insert_menu.addAction(self.smartart_action)
-        insert_menu.addSeparator()
-        insert_menu.addAction(self.date_insert_action)
-        insert_menu.addAction(self.time_insert_action)
-        insert_menu.addAction(self.file_insert_action)
-        insert_menu.addAction(self.attachment_action)
-        insert_menu.addSeparator()
-        insert_menu.addAction(self.insert_hyperlink_action)
-        bookmark_menu = insert_menu.addMenu("&Marcador")
+        self.tone_menu = QMenu("Cambiar tono", self)
+        for action in self.ai_tones.values():
+            self.tone_menu.addAction(action)
+
+        self.agents_menu = QMenu("Agentes especializados", self)
+        for action in self.agents_actions.values():
+            self.agents_menu.addAction(action)
+
+        self.ai_domain_menus = {}
+        for menu_name, submenu_actions in self._ai_specialized.items():
+            menu = QMenu(menu_name.replace("&", ""), self)
+            for action in submenu_actions.values():
+                menu.addAction(action)
+            self.ai_domain_menus[menu_name] = menu
+
+        self.ai_automation_menus = {}
+        for menu_name, submenu_actions in self._ai_automation.items():
+            menu = QMenu(menu_name.replace("&", ""), self)
+            for action in submenu_actions.values():
+                menu.addAction(action)
+            self.ai_automation_menus[menu_name] = menu
+
+        self.ai_premium_menu = QMenu("Premium", self)
+        for action in (
+            self.write_like_action,
+            self.set_style_memory_action,
+            self.project_memory_action,
+            self.template_action,
+            self.autocomplete_action,
+            self.coherence_action,
+            self.glossary_action,
+        ):
+            self.ai_premium_menu.addAction(action)
+
+    def _build_tab_inicio(self) -> None:
+        tab = self.ribbon.add_tab("Inicio")
+
+        portapapeles = tab.add_group("Portapapeles")
+        self._ribbon_button(portapapeles, self.cut_action, "scissors")
+        self._ribbon_button(portapapeles, self.copy_action, "copy")
+        self._ribbon_button(portapapeles, self.paste_action, "clipboard")
+        self._ribbon_button(portapapeles, self.painter_action, "paintbrush")
+        self._ribbon_dropdown(portapapeles, "Portapapeles", "clipboard", self.clipboard_menu)
+
+        edicion = tab.add_group("Edición")
+        self._ribbon_button(edicion, self.undo_action, "undo-2")
+        self._ribbon_button(edicion, self.redo_action, "redo-2")
+        edicion.add_separator()
+        self._ribbon_button(edicion, self.find_action, "search")
+        self._ribbon_button(edicion, self.replace_action, "replace")
+        self._ribbon_button(edicion, self.go_to_action, "corner-down-right")
+        self._ribbon_dropdown(edicion, "Seleccionar", "check-square", self._selection_menu())
+
+        self.format_bar = FormatBar(self._editor, tab)
+        fuente = tab.add_group("Fuente")
+        fuente.add_widget(self.format_bar)
+
+        self.paragraph_bar = ParagraphBar(self._editor, tab)
+        parrafo = tab.add_group("Párrafo")
+        parrafo.add_widget(self.paragraph_bar)
+
+        estilos = tab.add_group("Estilos")
+        self._ribbon_dropdown(estilos, "Estilos", "type", self.styles_menu)
+        estilos.add_separator()
+        self._ribbon_button(estilos, self.create_style_action, "sparkles")
+        self._ribbon_button(estilos, self.organizer_action, "layers")
+
+        self.drawing_bar = DrawingBar(self._editor, tab)
+        dibujo = tab.add_group("Dibujo")
+        dibujo.add_widget(self.drawing_bar)
+
+    def _selection_menu(self) -> QMenu:
+        menu = QMenu(self)
+        menu.addAction(self.select_word_action)
+        menu.addAction(self.select_line_action)
+        menu.addAction(self.select_paragraph_action)
+        menu.addAction(self.select_all_action)
+        return menu
+
+    def _build_tab_insertar(self) -> None:
+        tab = self.ribbon.add_tab("Insertar")
+
+        tablas = tab.add_group("Tablas")
+        self._ribbon_button(tablas, self.insert_table_action, "table", large=True)
+        tablas.add_separator()
+        self._ribbon_button(tablas, self.convert_text_to_table_action, "list")
+        self._ribbon_button(tablas, self.table_to_text_action, "align-justify")
+
+        ilustraciones = tab.add_group("Ilustraciones")
+        self._ribbon_button(ilustraciones, self.insert_image_action, "image", large=True)
+        self._ribbon_dropdown(ilustraciones, "Formas", "shapes", self.shapes_menu)
+        self._ribbon_button(ilustraciones, self.wordart_action, "type")
+        self._ribbon_button(ilustraciones, self.smartart_action, "network")
+        self._ribbon_button(ilustraciones, self.chart_action, "bar-chart")
+
+        simbolos = tab.add_group("Símbolos")
+        self._ribbon_button(simbolos, self.symbol_action, "sigma", large=True)
+        self._ribbon_button(simbolos, self.equation_action, "function-square")
+
+        enlaces = tab.add_group("Enlaces")
+        self._ribbon_button(enlaces, self.insert_hyperlink_action, "link", large=True)
+        bookmark_menu = QMenu(self)
         bookmark_menu.addAction(self.add_bookmark_action)
         bookmark_menu.addAction(self.go_to_bookmark_action)
         bookmark_menu.addAction(self.delete_bookmark_action)
-        header_footer_menu = insert_menu.addMenu("&Encabezado y pie")
-        header_footer_menu.addAction(self.header_action)
-        header_footer_menu.addAction(self.footer_action)
-        header_footer_menu.addSeparator()
-        field_menu = header_footer_menu.addMenu("&Campos")
-        field_menu.addAction(self.page_number_action)
-        field_menu.addAction(self.date_field_action)
-        field_menu.addAction(self.time_field_action)
-        field_menu.addAction(self.file_field_action)
-        field_menu.addAction(self.path_field_action)
-        field_menu.addAction(self.refresh_fields_action)
-        header_footer_menu.addSeparator()
-        header_footer_menu.addAction(self.remove_header_action)
-        header_footer_menu.addAction(self.remove_footer_action)
+        self._ribbon_dropdown(enlaces, "Marcador", "bookmark", bookmark_menu)
 
-        references_menu = self.menuBar().addMenu("&Referencias")
-        toc_menu = references_menu.addMenu("&Tabla de contenido")
-        toc_menu.addAction(self.toc_action)
-        toc_menu.addAction(self.update_toc_action)
-        notes_menu = references_menu.addMenu("&Notas")
-        notes_menu.addAction(self.footnote_action)
-        notes_menu.addAction(self.endnote_action)
-        references_menu.addAction(self.cross_reference_action)
-        references_menu.addSeparator()
-        citations_menu = references_menu.addMenu("&Citas y bibliografía")
-        citations_menu.addAction(self.add_source_action)
-        citations_menu.addAction(self.insert_citation_action)
-        citations_menu.addAction(self.bibliography_action)
-        references_menu.addSeparator()
-        references_menu.addAction(self.caption_action)
-        references_menu.addAction(self.table_of_figures_action)
-        references_menu.addSeparator()
-        references_menu.addAction(self.mark_index_action)
-        references_menu.addAction(self.insert_index_action)
+        encabezado = tab.add_group("Encabezado y pie")
+        self._ribbon_button(encabezado, self.header_action, "heading", large=True)
+        self._ribbon_button(encabezado, self.footer_action, "heading")
+        self._ribbon_button(encabezado, self.page_number_action, "hash")
+        self._ribbon_button(encabezado, self.auto_date_field_action, "calendar")
+        self._ribbon_button(encabezado, self.time_field_action, "clock")
+        self._ribbon_button(encabezado, self.refresh_fields_action, "refresh-cw")
 
-        review_menu = self.menuBar().addMenu("&Revisión")
-        review_menu.addAction(self.add_comment_action)
-        review_menu.addAction(self.show_comments_action)
-        review_menu.addSeparator()
-        review_menu.addAction(self.track_changes_action)
-        review_menu.addAction(self.accept_changes_action)
-        review_menu.addAction(self.reject_changes_action)
-        review_menu.addSeparator()
-        review_menu.addAction(self.compare_documents_action)
+        texto = tab.add_group("Texto")
+        self._ribbon_button(texto, self.text_box_action, "square")
+        self._ribbon_button(texto, self.file_insert_action, "file-text")
+        self._ribbon_button(texto, self.attachment_action, "paperclip")
 
-        tools_menu = self.menuBar().addMenu("&Herramientas")
-        tools_menu.addAction(self.spell_check_action)
-        tools_menu.addAction(self.add_dictionary_action)
-        tools_menu.addAction(self.manage_dictionary_action)
-        tools_menu.addSeparator()
-        tools_menu.addAction(self.thesaurus_action)
-        tools_menu.addAction(self.translate_action)
-        tools_menu.addSeparator()
-        tools_menu.addAction(self.count_action)
+    def _build_tab_diseno(self) -> None:
+        tab = self.ribbon.add_tab("Diseño de página")
 
-        forms_menu = self.menuBar().addMenu("&Formularios")
-        forms_menu.addAction(self.checkbox_action)
-        forms_menu.addAction(self.radio_action)
-        forms_menu.addAction(self.dropdown_action)
-        forms_menu.addAction(self.date_field_action)
-        forms_menu.addAction(self.text_field_action)
-        forms_menu.addAction(self.number_field_action)
-        forms_menu.addAction(self.hidden_field_action)
-        forms_menu.addSeparator()
-        forms_menu.addAction(self.protect_form_action)
-        forms_menu.addAction(self.reset_form_action)
+        configurar = tab.add_group("Configurar página")
+        self._ribbon_button(configurar, self.page_setup_action, "settings", large=True)
+        configurar.add_separator()
+        self._ribbon_button(configurar, self.page_break_action, "file-output")
+        self._ribbon_button(configurar, self.section_break_action, "split")
+        self._ribbon_button(configurar, self.line_numbers_action, "hash")
 
-        security_menu = self.menuBar().addMenu("&Seguridad")
-        security_menu.addAction(self.read_only_action)
-        security_menu.addAction(self.password_modify_action)
-        security_menu.addAction(self.remove_password_action)
-        security_menu.addAction(self.unlock_action)
-        security_menu.addAction(self.save_protected_action)
-        security_menu.addSeparator()
-        security_menu.addAction(self.final_action)
-        security_menu.addSeparator()
-        security_menu.addAction(self.sign_action)
-        security_menu.addAction(self.verify_sign_action)
-        security_menu.addSeparator()
-        security_menu.addAction(self.inspect_action)
-        security_menu.addAction(self.remove_personal_action)
+        columnas = tab.add_group("Columnas")
+        self._ribbon_button(columnas, self.columns_one_action, "columns-2")
+        self._ribbon_button(columnas, self.columns_two_action, "columns-3")
+        self._ribbon_button(columnas, self.columns_three_action, "columns-3")
+        self._ribbon_button(columnas, self.columns_more_action, "columns-3", large=True)
 
-        automation_menu = self.menuBar().addMenu("&Automatización")
-        automation_menu.addAction(self.record_macro_action)
-        automation_menu.addAction(self.stop_recording_action)
-        automation_menu.addAction(self.manage_macros_action)
-        automation_menu.addAction(self.assign_shortcut_action)
-        automation_menu.addSeparator()
-        automation_menu.addAction(self.variables_action)
-        self.automation_menu = automation_menu
-        automation_menu.aboutToShow.connect(self._rebuild_macro_shortcuts)
+        margenes = tab.add_group("Márgenes")
+        self._ribbon_dropdown(margenes, "Márgenes", "ruler", self.margins_menu)
+        margenes.add_separator()
+        self._ribbon_button(margenes, self.save_margin_template_action, "bookmark-plus")
+        self._ribbon_button(margenes, self.manage_margin_templates_action, "settings")
 
-        mail_menu = self.menuBar().addMenu("&Correspondencia")
-        mail_menu.addAction(self.data_source_action)
-        self.field_menu = mail_menu.addMenu("&Insertar campo")
-        self.field_menu.aboutToShow.connect(self._rebuild_field_menu)
-        mail_menu.addAction(self.preview_merge_action)
-        mail_menu.addAction(self.filter_merge_action)
-        mail_menu.addAction(self.sort_merge_action)
-        mail_menu.addSeparator()
-        mail_menu.addAction(self.generate_letters_action)
-        mail_menu.addAction(self.generate_labels_action)
-        mail_menu.addAction(self.generate_envelopes_action)
-        mail_menu.addSeparator()
-        mail_menu.addAction(self.email_merge_action)
+        fondo = tab.add_group("Fondo")
+        self._ribbon_button(fondo, self.watermark_action, "type")
+        self._ribbon_button(fondo, self.page_color_action, "palette")
 
-        collab_menu = self.menuBar().addMenu("&Colaboración")
-        collab_menu.addAction(self.collab_dialog_action)
-        collab_menu.addAction(self.set_username_action)
-        collab_menu.addAction(self.presence_action)
-        collab_menu.addAction(self.track_authors_action)
+        temas = tab.add_group("Temas")
+        self._ribbon_dropdown(temas, "Tema", "palette", self.theme_menu)
+        temas.add_separator()
+        self._ribbon_button(temas, self.high_contrast_action, "contrast")
+        self._ribbon_button(temas, self.create_style_action, "sparkles")
+        self._ribbon_button(temas, self.modify_style_action, "wand")
 
-        accessibility_menu = self.menuBar().addMenu("&Accesibilidad")
-        accessibility_menu.addAction(self.check_accessibility_action)
-        accessibility_menu.addAction(self.alt_text_action)
-        accessibility_menu.addSeparator()
-        accessibility_menu.addAction(self.read_aloud_action)
-        accessibility_menu.addAction(self.stop_reading_action)
-        accessibility_menu.addSeparator()
-        accessibility_menu.addAction(self.high_contrast_action)
-        accessibility_menu.addAction(self.immersive_action)
-        accessibility_menu.addAction(self.toggle_navigation_action)
+    def _build_tab_referencias(self) -> None:
+        tab = self.ribbon.add_tab("Referencias")
 
-        customize_menu = self.menuBar().addMenu("&Personalizar")
-        customize_menu.addAction(self.preferences_action)
-        customize_menu.addAction(self.customize_toolbar_action)
-        customize_menu.addAction(self.shortcuts_action)
-        customize_menu.addAction(self.manage_plugins_action)
+        toc = tab.add_group("Tabla de contenido")
+        self._ribbon_button(toc, self.toc_action, "list", large=True)
+        self._ribbon_button(toc, self.update_toc_action, "refresh-cw")
 
-        ai_menu = self.menuBar().addMenu("&IA")
-        ai_menu.addAction(self.api_key_action)
-        ai_menu.addAction(self.ai_about_action)
-        ai_menu.addSeparator()
-        writing_menu = ai_menu.addMenu("&Escritura")
-        writing_menu.addAction(self.ai_redact_action)
-        writing_menu.addAction(self.ai_continue_action)
-        writing_menu.addAction(self.ai_complete_action)
-        writing_menu.addAction(self.ai_rewrite_action)
-        writing_menu.addSeparator()
-        writing_menu.addAction(self.ai_summarize_action)
-        writing_menu.addAction(self.ai_expand_action)
-        writing_menu.addAction(self.ai_reduce_action)
-        writing_menu.addAction(self.ai_simplify_action)
-        tone_menu = writing_menu.addMenu("&Cambiar tono")
-        for action in self.ai_tones.values():
-            tone_menu.addAction(action)
-        correction_menu = ai_menu.addMenu("&Corrección")
-        correction_menu.addAction(self.ai_correct_action)
-        correction_menu.addAction(self.ai_redundancies_action)
-        correction_menu.addAction(self.ai_suggest_words_action)
-        correction_menu.addAction(self.ai_fluidity_action)
-        correction_menu.addAction(self.ai_clarity_action)
-        correction_menu.addAction(self.ai_ambiguity_action)
-        translation_menu = ai_menu.addMenu("&Traducción")
-        translation_menu.addAction(self.ai_translate_action)
-        translation_menu.addAction(self.ai_detect_language_action)
-        analysis_menu = ai_menu.addMenu("&Análisis")
-        analysis_menu.addAction(self.ai_ideas_action)
-        analysis_menu.addAction(self.ai_conclusions_action)
-        analysis_menu.addAction(self.ai_inconsistencies_action)
-        analysis_menu.addAction(self.ai_difficulty_action)
-        analysis_menu.addAction(self.ai_audience_action)
-        analysis_menu.addAction(self.ai_classify_action)
-        analysis_menu.addAction(self.ai_executive_action)
-        selection_menu = ai_menu.addMenu("&Selección")
-        selection_menu.addAction(self.ai_explain_action)
-        selection_menu.addAction(self.ai_selection_summary_action)
-        selection_menu.addAction(self.ai_selection_translate_action)
-        selection_menu.addAction(self.ai_selection_improve_action)
-        selection_menu.addAction(self.ai_selection_errors_action)
-        selection_menu.addAction(self.ai_selection_questions_action)
-        ai_menu.addSeparator()
-        ai_menu.addAction(self.ai_chat_panel_action)
-        for menu_name, submenu_actions in self._ai_specialized.items():
-            domain_menu = ai_menu.addMenu(menu_name)
-            for action in submenu_actions.values():
-                domain_menu.addAction(action)
-        for menu_name, submenu_actions in self._ai_automation.items():
-            automation_menu = ai_menu.addMenu(menu_name)
-            for action in submenu_actions.values():
-                automation_menu.addAction(action)
-        ai_menu.addSeparator()
-        premium_menu = ai_menu.addMenu("&Premium")
-        premium_menu.addAction(self.write_like_action)
-        premium_menu.addAction(self.set_style_memory_action)
-        premium_menu.addAction(self.project_memory_action)
-        premium_menu.addAction(self.template_action)
-        premium_menu.addAction(self.autocomplete_action)
-        premium_menu.addAction(self.coherence_action)
-        premium_menu.addAction(self.glossary_action)
-        agents_menu = premium_menu.addMenu("&Agentes especializados")
-        for action in self.agents_actions.values():
-            agents_menu.addAction(action)
-        self.ai_menu = ai_menu
+        notas = tab.add_group("Notas")
+        self._ribbon_button(notas, self.footnote_action, "superscript")
+        self._ribbon_button(notas, self.endnote_action, "subscript")
 
-        view_menu = self.menuBar().addMenu("&Ver")
-        modes_menu = view_menu.addMenu("&Modos de vista")
-        modes_menu.addAction(self.read_mode_action)
-        modes_menu.addAction(self.print_mode_action)
-        modes_menu.addAction(self.web_mode_action)
-        modes_menu.addAction(self.draft_mode_action)
-        modes_menu.addAction(self.outline_mode_action)
-        zoom_menu = view_menu.addMenu("&Zoom")
-        zoom_menu.addAction(self.zoom_in_action)
-        zoom_menu.addAction(self.zoom_out_action)
-        zoom_menu.addAction(self.zoom_reset_action)
-        zoom_menu.addSeparator()
-        zoom_menu.addAction(self.zoom_fit_width_action)
-        zoom_menu.addAction(self.zoom_fit_page_action)
-        view_menu.addSeparator()
-        view_menu.addAction(self.ruler_action)
-        view_menu.addAction(self.grid_action)
-        view_menu.addAction(self.toggle_navigation_action)
-        view_menu.addSeparator()
-        view_menu.addAction(self.toggle_toolbar_action)
-        view_menu.addAction(self.toggle_formatbar_action)
-        view_menu.addAction(self.toggle_paragraphbar_action)
-        view_menu.addAction(self.toggle_drawingbar_action)
-        view_menu.addAction(self.toggle_statusbar_action)
-        view_menu.addSeparator()
-        view_menu.addAction(self.split_window_action)
-        view_menu.addAction(self.new_window_action)
-        view_menu.addAction(self.fullscreen_action)
-        theme_menu = view_menu.addMenu("&Tema")
-        self.theme_menu = theme_menu
-        theme_menu.aboutToShow.connect(self._rebuild_theme_menu)
+        citas = tab.add_group("Citas y bibliografía")
+        self._ribbon_button(citas, self.add_source_action, "book-open")
+        self._ribbon_button(citas, self.insert_citation_action, "quote")
+        self._ribbon_button(citas, self.bibliography_action, "file-text")
 
-        help_menu = self.menuBar().addMenu("&Ayuda")
-        help_menu.addAction(self.about_action)
+        leyendas = tab.add_group("Leyendas")
+        self._ribbon_button(leyendas, self.caption_action, "type")
+        self._ribbon_button(leyendas, self.table_of_figures_action, "image")
 
-    def _build_toolbar(self) -> None:
-        self.toolbar = QToolBar("Principal", self)
-        self.toolbar.setObjectName("main_toolbar")
-        self.toolbar.setMovable(False)
-        self.toolbar.addAction(self.new_action)
-        self.toolbar.addAction(self.open_action)
-        self.toolbar.addAction(self.save_action)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.undo_action)
-        self.toolbar.addAction(self.redo_action)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.cut_action)
-        self.toolbar.addAction(self.copy_action)
-        self.toolbar.addAction(self.paste_action)
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.painter_action)
-        self.addToolBar(self.toolbar)
+        indice = tab.add_group("Índice")
+        self._ribbon_button(indice, self.mark_index_action, "bookmark-plus")
+        self._ribbon_button(indice, self.insert_index_action, "list-ordered")
+        self._ribbon_button(indice, self.cross_reference_action, "link")
 
-        self.format_bar = FormatBar(self._editor, self)
-        self.addToolBar(self.format_bar)
+    def _build_tab_revision(self) -> None:
+        tab = self.ribbon.add_tab("Revisión")
 
-        self.paragraph_bar = ParagraphBar(self._editor, self)
-        self.addToolBar(self.paragraph_bar)
+        comentarios = tab.add_group("Comentarios")
+        self._ribbon_button(comentarios, self.add_comment_action, "message-square", large=True)
+        self._ribbon_button(comentarios, self.show_comments_action, "message-square")
 
-        self.drawing_bar = DrawingBar(self._editor, self)
-        self.addToolBar(self.drawing_bar)
-        self.drawing_bar.hide()
+        cambios = tab.add_group("Cambios")
+        self._ribbon_button(cambios, self.track_changes_action, "file-check")
+        self._ribbon_button(cambios, self.accept_changes_action, "check")
+        self._ribbon_button(cambios, self.reject_changes_action, "x")
+        self._ribbon_button(cambios, self.compare_documents_action, "copy")
+
+        correccion = tab.add_group("Corrección")
+        self._ribbon_button(correccion, self.spell_check_action, "spell-check", large=True)
+        self._ribbon_button(correccion, self.add_dictionary_action, "book-open")
+        self._ribbon_button(correccion, self.manage_dictionary_action, "book-open")
+        self._ribbon_button(correccion, self.thesaurus_action, "languages")
+        self._ribbon_button(correccion, self.count_action, "calculator")
+
+    def _build_tab_vista(self) -> None:
+        tab = self.ribbon.add_tab("Vista")
+
+        vistas = tab.add_group("Vistas")
+        self._ribbon_button(vistas, self.read_mode_action, "eye")
+        self._ribbon_button(vistas, self.print_mode_action, "layout")
+        self._ribbon_button(vistas, self.web_mode_action, "globe")
+        self._ribbon_button(vistas, self.draft_mode_action, "file-text")
+        self._ribbon_button(vistas, self.outline_mode_action, "list")
+
+        zoom = tab.add_group("Zoom")
+        self._ribbon_button(zoom, self.zoom_in_action, "zoom-in")
+        self._ribbon_button(zoom, self.zoom_out_action, "zoom-out")
+        self._ribbon_button(zoom, self.zoom_reset_action, "percent")
+        self._ribbon_button(zoom, self.zoom_fit_width_action, "maximize")
+        self._ribbon_button(zoom, self.zoom_fit_page_action, "scan")
+
+        mostrar = tab.add_group("Mostrar")
+        self._ribbon_button(mostrar, self.ruler_action, "ruler")
+        self._ribbon_button(mostrar, self.grid_action, "grid")
+        self._ribbon_button(mostrar, self.toggle_navigation_action, "panel-left")
+        self._ribbon_button(mostrar, self.toggle_statusbar_action, "layout")
+
+        ventana = tab.add_group("Ventana")
+        self._ribbon_button(ventana, self.split_window_action, "split")
+        self._ribbon_button(ventana, self.new_window_action, "copy-plus")
+        self._ribbon_button(ventana, self.fullscreen_action, "maximize-2")
+
+        cinta = tab.add_group("Cinta")
+        self._ribbon_button(cinta, self.toggle_toolbar_action, "panel-top")
+        self._ribbon_button(cinta, self.toggle_formatbar_action, "type")
+        self._ribbon_button(cinta, self.toggle_paragraphbar_action, "align-left")
+        self._ribbon_button(cinta, self.toggle_drawingbar_action, "paintbrush")
+
+    def _build_tab_correspondencia(self) -> None:
+        tab = self.ribbon.add_tab("Correspondencia")
+
+        iniciar = tab.add_group("Iniciar")
+        self._ribbon_button(iniciar, self.data_source_action, "database", large=True)
+        self._ribbon_dropdown(iniciar, "Insertar campo", "type", self.field_menu)
+        self._ribbon_button(iniciar, self.preview_merge_action, "eye")
+
+        filtrar = tab.add_group("Filtrar")
+        self._ribbon_button(filtrar, self.filter_merge_action, "filter")
+        self._ribbon_button(filtrar, self.sort_merge_action, "sort-asc")
+
+        generar = tab.add_group("Generar")
+        self._ribbon_button(generar, self.generate_letters_action, "file-text", large=True)
+        self._ribbon_button(generar, self.generate_labels_action, "list")
+        self._ribbon_button(generar, self.generate_envelopes_action, "send")
+        self._ribbon_button(generar, self.email_merge_action, "mail")
+
+    def _build_tab_automatizacion(self) -> None:
+        tab = self.ribbon.add_tab("Automatización")
+
+        macros = tab.add_group("Macros")
+        self._ribbon_button(macros, self.record_macro_action, "play", large=True)
+        self._ribbon_button(macros, self.stop_recording_action, "square-stop")
+        self._ribbon_button(macros, self.manage_macros_action, "settings")
+        self._ribbon_button(macros, self.assign_shortcut_action, "keyboard")
+        self._ribbon_dropdown(macros, "Macros asignadas", "play", self.automation_menu)
+
+        variables = tab.add_group("Variables")
+        self._ribbon_button(variables, self.variables_action, "variable", large=True)
+
+        formularios = tab.add_group("Formularios")
+        self._ribbon_button(formularios, self.checkbox_action, "check-square")
+        self._ribbon_button(formularios, self.radio_action, "circle")
+        self._ribbon_button(formularios, self.dropdown_action, "list")
+        self._ribbon_button(formularios, self.date_field_action, "calendar")
+        self._ribbon_button(formularios, self.text_field_action, "type")
+        self._ribbon_button(formularios, self.number_field_action, "hash")
+        self._ribbon_button(formularios, self.hidden_field_action, "eye-off")
+        self._ribbon_button(formularios, self.protect_form_action, "lock")
+        self._ribbon_button(formularios, self.reset_form_action, "refresh-cw")
+
+        config = tab.add_group("Configuración")
+        self._ribbon_button(config, self.preferences_action, "settings")
+        self._ribbon_button(config, self.shortcuts_action, "keyboard")
+        self._ribbon_button(config, self.manage_plugins_action, "puzzle")
+
+    def _build_tab_colab_seguridad(self) -> None:
+        tab = self.ribbon.add_tab("Colaboración y seguridad")
+
+        colaboracion = tab.add_group("Colaboración")
+        self._ribbon_button(colaboracion, self.collab_dialog_action, "users", large=True)
+        self._ribbon_button(colaboracion, self.set_username_action, "user")
+        self._ribbon_button(colaboracion, self.presence_action, "activity")
+        self._ribbon_button(colaboracion, self.track_authors_action, "users")
+
+        seguridad = tab.add_group("Seguridad")
+        self._ribbon_button(seguridad, self.read_only_action, "lock")
+        self._ribbon_button(seguridad, self.password_modify_action, "lock")
+        self._ribbon_button(seguridad, self.remove_password_action, "unlock")
+        self._ribbon_button(seguridad, self.unlock_action, "unlock")
+        self._ribbon_button(seguridad, self.save_protected_action, "shield")
+        self._ribbon_button(seguridad, self.final_action, "check-circle-2")
+        self._ribbon_button(seguridad, self.sign_action, "fingerprint")
+        self._ribbon_button(seguridad, self.verify_sign_action, "shield")
+        self._ribbon_button(seguridad, self.inspect_action, "search")
+        self._ribbon_button(seguridad, self.remove_personal_action, "eraser")
+
+    def _build_tab_accesibilidad(self) -> None:
+        tab = self.ribbon.add_tab("Accesibilidad")
+
+        comprobar = tab.add_group("Comprobar")
+        self._ribbon_button(comprobar, self.check_accessibility_action, "accessibility", large=True)
+        self._ribbon_button(comprobar, self.alt_text_action, "image")
+
+        leer = tab.add_group("Leer")
+        self._ribbon_button(leer, self.read_aloud_action, "volume-2", large=True)
+        self._ribbon_button(leer, self.stop_reading_action, "square-stop")
+
+        ayuda = tab.add_group("Ayuda visual")
+        self._ribbon_button(ayuda, self.high_contrast_action, "contrast")
+        self._ribbon_button(ayuda, self.immersive_action, "maximize")
+        self._ribbon_button(ayuda, self.toggle_navigation_action, "panel-left")
+
+    def _build_tab_ia(self) -> None:
+        tab = self.ribbon.add_tab("IA")
+
+        chat = tab.add_group("Chat")
+        self._ribbon_button(chat, self.ai_chat_panel_action, "bot", large=True)
+        self._ribbon_button(chat, self.api_key_action, "key")
+
+        escritura = tab.add_group("Escritura")
+        self._ribbon_button(escritura, self.ai_redact_action, "sparkles")
+        self._ribbon_button(escritura, self.ai_continue_action, "play")
+        self._ribbon_button(escritura, self.ai_complete_action, "type")
+        self._ribbon_button(escritura, self.ai_rewrite_action, "refresh-cw")
+        self._ribbon_button(escritura, self.ai_summarize_action, "list")
+        self._ribbon_button(escritura, self.ai_expand_action, "maximize")
+        self._ribbon_button(escritura, self.ai_reduce_action, "minimize")
+        self._ribbon_button(escritura, self.ai_simplify_action, "type")
+        self._ribbon_dropdown(escritura, "Tono", "palette", self.tone_menu)
+
+        correccion = tab.add_group("Corrección IA")
+        self._ribbon_button(correccion, self.ai_correct_action, "spell-check")
+        self._ribbon_button(correccion, self.ai_redundancies_action, "repeat")
+        self._ribbon_button(correccion, self.ai_suggest_words_action, "languages")
+        self._ribbon_button(correccion, self.ai_fluidity_action, "waves")
+        self._ribbon_button(correccion, self.ai_clarity_action, "lightbulb")
+        self._ribbon_button(correccion, self.ai_ambiguity_action, "help-circle")
+
+        traduccion = tab.add_group("Traducción")
+        self._ribbon_button(traduccion, self.ai_translate_action, "languages", large=True)
+        self._ribbon_button(traduccion, self.ai_detect_language_action, "globe")
+
+        analisis = tab.add_group("Análisis")
+        self._ribbon_button(analisis, self.ai_ideas_action, "lightbulb")
+        self._ribbon_button(analisis, self.ai_conclusions_action, "list-ordered")
+        self._ribbon_button(analisis, self.ai_inconsistencies_action, "alert-triangle")
+        self._ribbon_button(analisis, self.ai_difficulty_action, "book-open")
+        self._ribbon_button(analisis, self.ai_audience_action, "users")
+        self._ribbon_button(analisis, self.ai_classify_action, "file-text")
+        self._ribbon_button(analisis, self.ai_executive_action, "file-check")
+
+        seleccion = tab.add_group("Selección")
+        self._ribbon_button(seleccion, self.ai_explain_action, "help-circle")
+        self._ribbon_button(seleccion, self.ai_selection_summary_action, "list")
+        self._ribbon_button(seleccion, self.ai_selection_translate_action, "languages")
+        self._ribbon_button(seleccion, self.ai_selection_improve_action, "wand")
+        self._ribbon_button(seleccion, self.ai_selection_errors_action, "spell-check")
+        self._ribbon_button(seleccion, self.ai_selection_questions_action, "help-circle")
+
+        dominios = tab.add_group("Dominios")
+        for label in ("Legal", "Programación", "Educación", "Negocios", "Investigación"):
+            key = f"&{label}"
+            menu = self.ai_domain_menus.get(key)
+            if menu is not None:
+                self._ribbon_dropdown(dominios, label, "scale", menu)
+
+        automatizacion = tab.add_group("Automatización IA")
+        for label in ("Automatización", "Productividad", "Marketing"):
+            menu = self.ai_automation_menus.get(f"&{label}")
+            if menu is not None:
+                self._ribbon_dropdown(automatizacion, label, "zap", menu)
+
+        premium = tab.add_group("Premium")
+        self._ribbon_dropdown(premium, "Premium", "star", self.ai_premium_menu)
+        self._ribbon_dropdown(premium, "Agentes", "bot", self.agents_menu)
+
+    def _build_tab_ayuda(self) -> None:
+        tab = self.ribbon.add_tab("Ayuda")
+        ayuda = tab.add_group("Ayuda")
+        self._ribbon_button(ayuda, self.about_action, "help-circle", large=True)
+
+    def add_ribbon_action(self, action, tab_title: str, group_title: str,
+                          large: bool = False) -> None:
+        """Hook para que los complementos añadan acciones a la cinta."""
+        tabs = {t: i for i, t in enumerate(self.ribbon.tab_titles())}
+        index = tabs.get(tab_title)
+        if index is None:
+            index = self.ribbon.add_tab(tab_title)
+        tab_widget = self.ribbon._stack.widget(index)
+        group = None
+        for existing in tab_widget._groups:
+            if existing.title == group_title:
+                group = existing
+                break
+        if group is None:
+            group = tab_widget.add_group(group_title)
+        self._ribbon_button(group, action, "sparkles", large=large)
+        return group
+
 
     def _build_statusbar(self) -> None:
         self.words_label = QLabel(self)
         self.chars_label = QLabel(self)
         self.modified_label = QLabel(self)
         self._presence_label = QLabel(self)
+        self._presence_user_label = QLabel(self)
         self.statusBar().addPermanentWidget(self._presence_label)
+        self.statusBar().addPermanentWidget(self._presence_user_label)
         self.statusBar().addPermanentWidget(self.words_label)
         self.statusBar().addPermanentWidget(self.chars_label)
         self.statusBar().addPermanentWidget(self.modified_label)
@@ -2002,13 +2018,13 @@ class MainWindow(QMainWindow):
         )
 
     def _toggle_toolbar(self, checked: bool) -> None:
-        self.toolbar.setVisible(checked)
+        self.ribbon.setVisible(checked)
 
     def _toggle_formatbar(self, checked: bool) -> None:
-        self.format_bar.setVisible(checked)
+        self.ribbon.set_group_visible("Inicio", "Fuente", checked)
 
     def _toggle_paragraphbar(self, checked: bool) -> None:
-        self.paragraph_bar.setVisible(checked)
+        self.ribbon.set_group_visible("Inicio", "Párrafo", checked)
 
     def _print_document(self) -> None:
         from rword.core.export import print_document
@@ -2042,7 +2058,7 @@ class MainWindow(QMainWindow):
         )
 
     def _toggle_drawingbar(self, checked: bool) -> None:
-        self.drawing_bar.setVisible(checked)
+        self.ribbon.set_group_visible("Inicio", "Dibujo", checked)
         if not checked:
             self._editor.set_drawing(False)
             self.drawing_bar.enable_action.setChecked(False)
@@ -2121,22 +2137,11 @@ class MainWindow(QMainWindow):
         paragraph.set_paragraph_shading(self._editor, QColor("transparent"))
 
     def _rebuild_styles_menu(self) -> None:
-        styles_menu = self.styles_menu
-        for action in styles_menu.actions():
-            if action not in (
-                self.create_style_action,
-                self.modify_style_action,
-                self.organizer_action,
-                self.painter_action,
-            ) and action.menu() is None:
-                styles_menu.removeAction(action)
+        self.styles_menu.clear()
         for name in sorted(self._style_manager.names()):
-            action = QAction(name, self)
+            action = self.styles_menu.addAction(name)
             action.triggered.connect(
                 lambda checked=False, n=name: self._apply_style(n)
-            )
-            styles_menu.insertAction(
-                self.create_style_action, action
             )
 
     def _apply_style(self, name: str) -> None:
@@ -2199,6 +2204,65 @@ class MainWindow(QMainWindow):
             self._columns_action_labels, (1, 2, 3), strict=True
         ):
             action.setChecked(index == count)
+
+    def _columns_more(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        count, ok = QInputDialog.getInt(
+            self, "Más columnas", "Número de columnas:", 3, 1, 8
+        )
+        if ok:
+            self._set_columns(count)
+
+    def _rebuild_margins_menu(self) -> None:
+        self.margins_menu.clear()
+        for name, (left, right, top, bottom) in STANDARD_TEMPLATES.items():
+            action = self.margins_menu.addAction(name)
+            action.triggered.connect(
+                lambda checked=False, lm=left, rm=right, tm=top, bm=bottom:
+                self._apply_margin_template(lm, rm, tm, bm)
+            )
+        self.margins_menu.addSeparator()
+        for name in sorted(self._margin_store.names()):
+            margins = self._margin_store.get(name)
+            action = self.margins_menu.addAction(name)
+            action.triggered.connect(
+                lambda checked=False, lm=margins[0], rm=margins[1],
+                tm=margins[2], bm=margins[3]:
+                self._apply_margin_template(lm, rm, tm, bm)
+            )
+        self.margins_menu.addSeparator()
+        self.margins_menu.addAction(self.save_margin_template_action)
+        self.margins_menu.addAction(self.manage_margin_templates_action)
+        self.margins_menu.addAction(self.page_setup_action)
+
+    def _apply_margin_template(self, left, right, top, bottom) -> None:
+        setup = apply_margins(self._editor, left, right, top, bottom)
+        page = setup.page_size_px()
+        self._page_view.set_page_size(int(page.width()), int(page.height()))
+        self._page_view.update_paper_color(setup.page_color)
+        self._refresh_rulers()
+
+    def _save_margin_template(self) -> None:
+        dialog = SaveMarginTemplateDialog(self._editor, self._margin_store, self)
+        dialog.exec()
+
+    def _manage_margin_templates(self) -> None:
+        dialog = MarginTemplateManagerDialog(self._editor, self._margin_store, self)
+        dialog.exec()
+
+    def _choose_page_color(self) -> None:
+        from PySide6.QtWidgets import QColorDialog
+
+        setup = current_page_setup(self._editor)
+        color = QColorDialog.getColor(
+            QColor(setup.page_color), self, "Color de página"
+        )
+        if color.isValid():
+            setup.page_color = color.name()
+            apply_page_setup(self._editor, setup)
+            self._page_view.update_paper_color(color.name())
+            self._refresh_rulers()
 
     def _show_page_setup(self) -> None:
         setup = current_page_setup(self._editor)
@@ -2575,7 +2639,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_navigation_panel(self, checked: bool) -> None:
         if self._navigation_panel is None:
-            self._navigation_panel = NavigationPanel(self._editor, self)
+            self._navigation_panel = NavigationPanel(self._editor, self, self._icon_manager)
             self.addDockWidget(
                 Qt.DockWidgetArea.RightDockWidgetArea, self._navigation_panel
             )
@@ -2612,18 +2676,11 @@ class MainWindow(QMainWindow):
 
     def _enter_read_mode(self) -> None:
         self._editor.set_view_mode("read")
-        self.menuBar().hide()
-        self.toolbar.hide()
-        self.format_bar.hide()
-        self.paragraph_bar.hide()
-        self.drawing_bar.hide()
+        self.ribbon.hide()
         self.statusBar().hide()
 
     def _exit_read_mode(self) -> None:
-        self.menuBar().show()
-        self.toolbar.show()
-        self.format_bar.show()
-        self.paragraph_bar.show()
+        self.ribbon.show()
         self.statusBar().show()
         self._editor.set_view_mode("print")
 
@@ -3247,10 +3304,15 @@ class MainWindow(QMainWindow):
         )
 
     def _update_presence_label(self) -> None:
-        if hasattr(self, "_presence_label"):
-            self._presence_label.setText(
-                f"● {self._collaboration_manager().username}"
-            )
+        if not hasattr(self, "_presence_label"):
+            return
+        self._presence_label.setStyleSheet(
+            "background: #22c55e; border-radius: 4px;"
+        )
+        self._presence_label.setFixedSize(8, 8)
+        self._presence_user_label.setText(
+            self._collaboration_manager().username
+        )
 
     def _log_activity(self, event: str, detail: str = "") -> None:
         if hasattr(self, "_collab_manager"):
@@ -3265,7 +3327,7 @@ class MainWindow(QMainWindow):
                 self, "Accesibilidad", "El documento supera la comprobación."
             )
             return
-        lines = [f"• {category}: {problem}" for category, problem in issues]
+        lines = [f"- {category}: {problem}" for category, problem in issues]
         QMessageBox.information(
             self,
             "Comprobador de accesibilidad",
@@ -3309,17 +3371,10 @@ class MainWindow(QMainWindow):
 
     def _toggle_immersive(self, checked: bool) -> None:
         if checked:
-            self.menuBar().hide()
-            self.toolbar.hide()
-            self.format_bar.hide()
-            self.paragraph_bar.hide()
-            self.drawing_bar.hide()
+            self.ribbon.hide()
             self.statusBar().hide()
         else:
-            self.menuBar().show()
-            self.toolbar.show()
-            self.format_bar.show()
-            self.paragraph_bar.show()
+            self.ribbon.show()
             self.statusBar().show()
 
     def _apply_saved_preferences(self) -> None:
@@ -3343,48 +3398,8 @@ class MainWindow(QMainWindow):
                 QApplication.instance().setStyleSheet("")
             self._collaboration_manager().set_username(preferences.username)
             self._update_presence_label()
-
-    def _customize_toolbar(self) -> None:
-        from rword.ui.dialogs.customize import ToolbarCustomizeDialog
-
-        actions = {
-            "new": self.new_action,
-            "open": self.open_action,
-            "save": self.save_action,
-            "undo": self.undo_action,
-            "redo": self.redo_action,
-            "cut": self.cut_action,
-            "copy": self.copy_action,
-            "paste": self.paste_action,
-            "painter": self.painter_action,
-        }
-        dialog = ToolbarCustomizeDialog(actions, self._settings, self.toolbar, self)
-        if dialog.exec():
-            self._rebuild_toolbar_from_settings()
-
-    def _rebuild_toolbar_from_settings(self) -> None:
-        from rword.ui.dialogs.customize import TOOLBAR_ACTIONS_KEY
-
-        stored = self._settings.value(TOOLBAR_ACTIONS_KEY, [])
-        enabled = set(stored) if stored else None
-        mapping = {
-            "new": self.new_action,
-            "open": self.open_action,
-            "save": self.save_action,
-            "undo": self.undo_action,
-            "redo": self.redo_action,
-            "cut": self.cut_action,
-            "copy": self.copy_action,
-            "paste": self.paste_action,
-            "painter": self.painter_action,
-        }
-        order = ["new", "open", "save", "undo", "redo", "cut", "copy", "paste", "painter"]
-        self.toolbar.clear()
-        for key in order:
-            if key in mapping and (enabled is None or key in enabled):
-                self.toolbar.addAction(mapping[key])
-                if key == "save" or key == "redo":
-                    self.toolbar.addSeparator()
+            self._icon_manager.set_color(icon_color_for(self))
+            self._refresh_rulers()
 
     def _show_shortcuts(self) -> None:
         from rword.ui.dialogs.customize import ShortcutsDialog
@@ -3560,7 +3575,7 @@ class MainWindow(QMainWindow):
 
         if self._ai_chat_panel is None:
             self._ai_chat_panel = AiChatPanel(
-                self._editor, self._ai_client, self
+                self._editor, self._ai_client, self, self._icon_manager
             )
             self.addDockWidget(
                 Qt.DockWidgetArea.RightDockWidgetArea, self._ai_chat_panel
@@ -3677,7 +3692,7 @@ class MainWindow(QMainWindow):
         from rword.core.assist import consistency_findings
 
         local = consistency_findings(self._editor)
-        lines = [f"• {category}: {detail}" for category, detail in local]
+        lines = [f"- {category}: {detail}" for category, detail in local]
         if self._ai_client().configured:
             context = document_context(self._editor)
             client = self._ai_client()
@@ -3881,7 +3896,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_comments_panel(self, checked: bool) -> None:
         if self._comments_panel is None:
-            self._comments_panel = CommentsPanel(self._editor, self)
+            self._comments_panel = CommentsPanel(self._editor, self, self._icon_manager)
             self.addDockWidget(
                 Qt.DockWidgetArea.RightDockWidgetArea, self._comments_panel
             )
@@ -4035,6 +4050,7 @@ class MainWindow(QMainWindow):
         self._theme_manager.set_current(name)
         apply_theme(self._editor, theme)
         self._page_view.update_paper_color(theme.page_color)
+        self._icon_manager.set_color(icon_color_for(self))
 
     def _connect_editor_signals(self) -> None:
         self._editor.document().modificationChanged.connect(
@@ -4136,17 +4152,9 @@ class MainWindow(QMainWindow):
         state = self._settings.value(WINDOW_STATE_KEY)
         if state is not None:
             self.restoreState(state)
-        toolbar_visible = self._settings.value(TOOLBAR_VISIBLE_KEY, True, type=bool)
-        self.toolbar.setVisible(toolbar_visible)
-        self.toggle_toolbar_action.setChecked(toolbar_visible)
-        formatbar_visible = self._settings.value(FORMATBAR_VISIBLE_KEY, True, type=bool)
-        self.format_bar.setVisible(formatbar_visible)
-        self.toggle_formatbar_action.setChecked(formatbar_visible)
-        paragraphbar_visible = self._settings.value(
-            PARAGRAPHBAR_VISIBLE_KEY, True, type=bool
-        )
-        self.paragraph_bar.setVisible(paragraphbar_visible)
-        self.toggle_paragraphbar_action.setChecked(paragraphbar_visible)
+        ribbon_visible = self._settings.value(RIBBON_VISIBLE_KEY, True, type=bool)
+        self.ribbon.setVisible(ribbon_visible)
+        self.toggle_toolbar_action.setChecked(ribbon_visible)
         statusbar_visible = self._settings.value(
             STATUSBAR_VISIBLE_KEY, True, type=bool
         )
@@ -4160,13 +4168,7 @@ class MainWindow(QMainWindow):
         self._settings.setValue(WINDOW_GEOMETRY_KEY, self.saveGeometry())
         self._settings.setValue(WINDOW_STATE_KEY, self.saveState())
         self._settings.setValue(
-            TOOLBAR_VISIBLE_KEY, self.toolbar.isVisible()
-        )
-        self._settings.setValue(
-            FORMATBAR_VISIBLE_KEY, self.format_bar.isVisible()
-        )
-        self._settings.setValue(
-            PARAGRAPHBAR_VISIBLE_KEY, self.paragraph_bar.isVisible()
+            RIBBON_VISIBLE_KEY, self.ribbon.isVisible()
         )
         self._settings.setValue(
             STATUSBAR_VISIBLE_KEY, self.statusBar().isVisible()

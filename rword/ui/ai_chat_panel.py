@@ -20,10 +20,11 @@ from rword.core.ai.session import ChatSession
 class AiChatPanel(QDockWidget):
     """Permite conversar con la IA sobre el documento abierto."""
 
-    def __init__(self, editor, client_factory, parent=None) -> None:
+    def __init__(self, editor, client_factory, parent=None, icon_manager=None) -> None:
         super().__init__("Chat con IA", parent)
         self._editor = editor
         self._client_factory = client_factory
+        self._icon_manager = icon_manager
         self.setObjectName("ai_chat_panel")
         self.setMinimumWidth(320)
         self._session = ChatSession()
@@ -65,7 +66,7 @@ class AiChatPanel(QDockWidget):
         question = self._input.text().strip()
         if not question:
             return
-        self._messages.addItem(f"❓ {question}")
+        self._messages.addItem(self._message_item("help-circle", question))
         self._input.clear()
         if self._document_only.isChecked():
             self._session.reset(
@@ -85,10 +86,22 @@ class AiChatPanel(QDockWidget):
         try:
             reply = client.chat(self._session.history())
         except AiError as error:
-            self._messages.addItem(f"⚠️ {error}")
+            self._messages.addItem(self._message_item("alert-triangle", str(error)))
             return
         self._session.add("assistant", reply)
-        self._messages.addItem(f"🤖 {reply}")
+        self._messages.addItem(self._message_item("bot", reply))
+
+    def _message_item(self, icon_name: str, text: str):
+        from PySide6.QtWidgets import QListWidgetItem
+
+        from rword.ui.icons import IconManager, icon_color_for
+
+        item = QListWidgetItem(text)
+        manager = getattr(self, "_icon_manager", None) or IconManager(
+            icon_color_for(self)
+        )
+        item.setIcon(manager.make_icon(icon_name, 16))
+        return item
 
     def _clear(self) -> None:
         self._messages.clear()

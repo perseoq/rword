@@ -52,9 +52,9 @@ def test_fit_page(main_window):
 def test_enter_read_mode(main_window):
     main_window.show()
     main_window._enter_read_mode()
-    assert not main_window.menuBar().isVisible()
+    assert not main_window.ribbon.isVisible()
     main_window._enter_print_mode()
-    assert main_window.menuBar().isVisible()
+    assert main_window.ribbon.isVisible()
     main_window.close()
 
 

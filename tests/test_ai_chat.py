@@ -43,7 +43,8 @@ def test_chat_panel_send(main_window):
     panel._input.setText("¿qué es?")
     panel._send()
     assert panel._messages.count() == 2
-    assert "❓" in panel._messages.item(0).text()
+    assert panel._messages.item(0).text() == "¿qué es?"
+    assert not panel._messages.item(0).icon().isNull()
     assert "RESPUESTA" in panel._messages.item(1).text()
     panel.deleteLater()
 
@@ -63,7 +64,8 @@ def test_chat_panel_error(main_window):
     panel = AiChatPanel(main_window._editor, lambda: ErrorClient(), main_window)
     panel._input.setText("pregunta")
     panel._send()
-    assert "⚠️" in panel._messages.item(1).text()
+    assert "clave" in panel._messages.item(1).text()
+    assert not panel._messages.item(1).icon().isNull()
     panel.deleteLater()
 
 

@@ -18,9 +18,10 @@ from rword.core import comments
 class CommentsPanel(QDockWidget):
     """Muestra los comentarios y permite gestionarlos."""
 
-    def __init__(self, editor, parent=None) -> None:
+    def __init__(self, editor, parent=None, icon_manager=None) -> None:
         super().__init__("Comentarios", parent)
         self._editor = editor
+        self._icon_manager = icon_manager
         self.setObjectName("comments_panel")
         self.setMinimumWidth(280)
         self._build_ui()
@@ -58,18 +59,24 @@ class CommentsPanel(QDockWidget):
             return
         self._list.blockSignals(True)
         self._list.clear()
+        from rword.ui.icons import IconManager, icon_color_for
+
+        manager = getattr(self, "_icon_manager", None) or IconManager(
+            icon_color_for(self)
+        )
         for comment in comments.comments(self._editor):
-            status = "✔" if comment.resolved else "·"
             snippet = self._editor.document().toPlainText()[
                 comment.start : comment.start + comment.length
             ]
             snippet = snippet.replace("\n", " ")
             if len(snippet) > 30:
                 snippet = snippet[:30] + "…"
-            label = f"{status} {comment.author}: {comment.text}"
+            label = f"{comment.author}: {comment.text}"
             if comment.replies:
                 label += f" ({len(comment.replies)} resp.)"
             item = QListWidgetItem(label)
+            icon_name = "check-circle-2" if comment.resolved else "circle"
+            item.setIcon(manager.make_icon(icon_name, 16))
             item.setToolTip(snippet or "sin selección")
             self._list.addItem(item)
         self._list.blockSignals(False)

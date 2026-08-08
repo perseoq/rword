@@ -70,7 +70,7 @@ def insert_file_contents(editor: QTextEdit, path: str | Path) -> bool:
 def insert_attachment(editor: QTextEdit, path: str | Path) -> None:
     """Inserta un enlace a un archivo adjunto (PDF, video, audio...)."""
     path = Path(path)
-    insert_hyperlink(editor, f"📎 {path.name}", path.as_uri())
+    insert_hyperlink(editor, f"[Adjunto] {path.name}", path.as_uri())
 
 
 def make_chart_image(values: list[float], labels: list[str]) -> QImage:
