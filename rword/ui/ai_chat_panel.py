@@ -110,8 +110,10 @@ class AiChatPanel(QDockWidget):
         self._chat_worker.start()
 
     def _on_reply(self, reply: str) -> None:
+        from rword.core.ai.cleaning import strip_markdown
+
         self._session.add("assistant", reply)
-        self._messages.addItem(self._message_item("bot", reply))
+        self._messages.addItem(self._message_item("bot", strip_markdown(reply)))
 
     def _on_chat_error(self, error: str) -> None:
         self._messages.addItem(self._message_item("alert-triangle", str(error)))

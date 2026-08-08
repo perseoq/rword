@@ -3514,6 +3514,9 @@ class MainWindow(QMainWindow):
         self._ai_worker.start()
 
     def _ai_apply_result(self, result: str, insert_mode: str) -> None:
+        from rword.core.ai.cleaning import strip_markdown
+
+        result = strip_markdown(result)
         if insert_mode == "replace_selection":
             cursor = self._editor.textCursor()
             if cursor.hasSelection():
