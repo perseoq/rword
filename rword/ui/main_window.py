@@ -37,6 +37,7 @@ from rword.core.tables import TABLE_STYLES
 from rword.core.themes import ThemeManager, apply_theme
 from rword.ui.comments_panel import CommentsPanel
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
+from rword.ui.dialogs.count import CountDialog
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
 from rword.ui.dialogs.header_footer import HeaderFooterDialog
@@ -47,6 +48,7 @@ from rword.ui.dialogs.paragraph import ParagraphDialog
 from rword.ui.dialogs.shape import ShapeDialog, WordArtDialog
 from rword.ui.dialogs.style import StyleDialog
 from rword.ui.dialogs.style_organizer import StyleOrganizerDialog
+from rword.ui.dialogs.thesaurus import ThesaurusDialog
 from rword.ui.editor import Editor
 from rword.ui.format_bar import FormatBar
 from rword.ui.navigation_panel import NavigationPanel
@@ -659,6 +661,24 @@ class MainWindow(QMainWindow):
         self.compare_documents_action = QAction("Comparar documentos...", self)
         self.compare_documents_action.triggered.connect(self._compare_documents)
 
+        self.spell_check_action = QAction("Revisar ortografía", self)
+        self.spell_check_action.triggered.connect(self._check_spelling)
+
+        self.add_dictionary_action = QAction("Añadir palabra al diccionario", self)
+        self.add_dictionary_action.triggered.connect(self._add_dictionary_word)
+
+        self.manage_dictionary_action = QAction("Diccionario personalizado...", self)
+        self.manage_dictionary_action.triggered.connect(self._manage_dictionary)
+
+        self.thesaurus_action = QAction("Sinónimos y antónimos...", self)
+        self.thesaurus_action.triggered.connect(self._show_thesaurus)
+
+        self.count_action = QAction("Contar palabras...", self)
+        self.count_action.triggered.connect(self._show_count)
+
+        self.translate_action = QAction("Traducir selección...", self)
+        self.translate_action.triggered.connect(self._translate_selection)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -912,6 +932,16 @@ class MainWindow(QMainWindow):
         review_menu.addAction(self.reject_changes_action)
         review_menu.addSeparator()
         review_menu.addAction(self.compare_documents_action)
+
+        tools_menu = self.menuBar().addMenu("&Herramientas")
+        tools_menu.addAction(self.spell_check_action)
+        tools_menu.addAction(self.add_dictionary_action)
+        tools_menu.addAction(self.manage_dictionary_action)
+        tools_menu.addSeparator()
+        tools_menu.addAction(self.thesaurus_action)
+        tools_menu.addAction(self.translate_action)
+        tools_menu.addSeparator()
+        tools_menu.addAction(self.count_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -1833,6 +1863,99 @@ class MainWindow(QMainWindow):
             self._show_error(f"No se pudieron leer los documentos:\n{error}")
             return
         compare_documents(self._editor, original, modified)
+
+    def _check_spelling(self) -> None:
+        from rword.core.spelling import SpellChecker
+
+        if not hasattr(self, "_spell_checker"):
+            self._spell_checker = SpellChecker(self._settings)
+        count = self._spell_checker.highlight_misspelled(self._editor)
+        if count:
+            self.statusBar().showMessage(
+                f"Revisión ortográfica: {count} palabras desconocidas.", 5000
+            )
+        else:
+            self.statusBar().showMessage("Revisión ortográfica: sin errores.", 5000)
+
+    def _add_dictionary_word(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.spelling import SpellChecker
+
+        word, ok = QInputDialog.getText(
+            self, "Añadir al diccionario", "Palabra:"
+        )
+        if ok and word:
+            checker = getattr(
+                self, "_spell_checker", SpellChecker(self._settings)
+            )
+            self._spell_checker = checker
+            checker.add_word(word)
+
+    def _manage_dictionary(self) -> None:
+        from PySide6.QtWidgets import (
+            QDialog,
+            QDialogButtonBox,
+            QListWidget,
+            QPushButton,
+            QVBoxLayout,
+        )
+
+        from rword.core.spelling import SpellChecker
+
+        checker = getattr(self, "_spell_checker", SpellChecker(self._settings))
+        self._spell_checker = checker
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Diccionario personalizado")
+        layout = QVBoxLayout(dialog)
+        word_list = QListWidget(dialog)
+        word_list.addItems(checker.user_words())
+        layout.addWidget(word_list)
+        remove_button = QPushButton("Quitar seleccionada", dialog)
+        remove_button.clicked.connect(
+            lambda: self._remove_dictionary_word(checker, word_list)
+        )
+        layout.addWidget(remove_button)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.exec()
+
+    def _remove_dictionary_word(self, checker, word_list) -> None:
+        item = word_list.currentItem()
+        if item is not None and checker.remove_word(item.text()):
+            word_list.takeItem(word_list.row(item))
+
+    def _show_thesaurus(self) -> None:
+        dialog = ThesaurusDialog(self._editor, self)
+        dialog.exec()
+
+    def _show_count(self) -> None:
+        dialog = CountDialog(self._editor, self)
+        dialog.exec()
+
+    def _translate_selection(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.translate import translate_text
+
+        selected = self._editor.textCursor().selectedText().replace("\u2029", "\n")
+        if not selected:
+            self._show_error("Seleccione texto para traducir.")
+            return
+        target, ok = QInputDialog.getItem(
+            self,
+            "Traducir",
+            "Idioma de destino:",
+            ["Inglés (en)", "Español (es)"],
+            0,
+            False,
+        )
+        if not ok:
+            return
+        code = "en" if target.startswith("Inglés") else "es"
+        translation = translate_text(selected, code)
+        self._editor.insertPlainText(translation)
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu

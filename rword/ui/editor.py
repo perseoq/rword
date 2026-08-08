@@ -36,6 +36,7 @@ class Editor(QTextEdit):
         self._track_changes = False
         self._find_selections: list = []
         self._comment_selections: list = []
+        self._spelling_selections: list = []
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -99,7 +100,11 @@ class Editor(QTextEdit):
         self._refresh_extra_selections()
 
     def _refresh_extra_selections(self) -> None:
-        self.setExtraSelections(self._find_selections + self._comment_selections)
+        self.setExtraSelections(
+            self._find_selections
+            + self._comment_selections
+            + self._spelling_selections
+        )
 
     @property
     def file_path(self) -> Path | None:
