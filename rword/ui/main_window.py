@@ -599,6 +599,42 @@ class MainWindow(QMainWindow):
         self.remove_footer_action = QAction("Eliminar pie de página", self)
         self.remove_footer_action.triggered.connect(self._remove_footer)
 
+        self.toc_action = QAction("Tabla de contenido", self)
+        self.toc_action.triggered.connect(self._insert_toc)
+
+        self.update_toc_action = QAction("Actualizar tabla de contenido", self)
+        self.update_toc_action.triggered.connect(self._update_toc)
+
+        self.footnote_action = QAction("Nota al pie...", self)
+        self.footnote_action.triggered.connect(self._add_footnote)
+
+        self.endnote_action = QAction("Nota al final...", self)
+        self.endnote_action.triggered.connect(self._add_endnote)
+
+        self.cross_reference_action = QAction("Referencia cruzada...", self)
+        self.cross_reference_action.triggered.connect(self._insert_cross_reference)
+
+        self.add_source_action = QAction("Nueva fuente...", self)
+        self.add_source_action.triggered.connect(self._add_source)
+
+        self.insert_citation_action = QAction("Insertar cita...", self)
+        self.insert_citation_action.triggered.connect(self._insert_citation)
+
+        self.bibliography_action = QAction("Bibliografía", self)
+        self.bibliography_action.triggered.connect(self._insert_bibliography)
+
+        self.caption_action = QAction("Leyenda...", self)
+        self.caption_action.triggered.connect(self._insert_caption)
+
+        self.table_of_figures_action = QAction("Tabla de ilustraciones", self)
+        self.table_of_figures_action.triggered.connect(self._table_of_figures)
+
+        self.mark_index_action = QAction("Marcar entrada de índice", self)
+        self.mark_index_action.triggered.connect(self._mark_index)
+
+        self.insert_index_action = QAction("Índice analítico", self)
+        self.insert_index_action.triggered.connect(self._insert_index)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -822,6 +858,26 @@ class MainWindow(QMainWindow):
         header_footer_menu.addSeparator()
         header_footer_menu.addAction(self.remove_header_action)
         header_footer_menu.addAction(self.remove_footer_action)
+
+        references_menu = self.menuBar().addMenu("&Referencias")
+        toc_menu = references_menu.addMenu("&Tabla de contenido")
+        toc_menu.addAction(self.toc_action)
+        toc_menu.addAction(self.update_toc_action)
+        notes_menu = references_menu.addMenu("&Notas")
+        notes_menu.addAction(self.footnote_action)
+        notes_menu.addAction(self.endnote_action)
+        references_menu.addAction(self.cross_reference_action)
+        references_menu.addSeparator()
+        citations_menu = references_menu.addMenu("&Citas y bibliografía")
+        citations_menu.addAction(self.add_source_action)
+        citations_menu.addAction(self.insert_citation_action)
+        citations_menu.addAction(self.bibliography_action)
+        references_menu.addSeparator()
+        references_menu.addAction(self.caption_action)
+        references_menu.addAction(self.table_of_figures_action)
+        references_menu.addSeparator()
+        references_menu.addAction(self.mark_index_action)
+        references_menu.addAction(self.insert_index_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -1572,6 +1628,118 @@ class MainWindow(QMainWindow):
         from rword.core.headers import remove_footer
 
         remove_footer(self._editor)
+
+    def _insert_toc(self) -> None:
+        from rword.core.references import insert_toc
+
+        insert_toc(self._editor)
+
+    def _update_toc(self) -> None:
+        from rword.core.references import update_toc
+
+        update_toc(self._editor)
+
+    def _add_footnote(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.references import add_footnote
+
+        text, ok = QInputDialog.getMultiLineText(
+            self, "Nota al pie", "Texto de la nota:"
+        )
+        if ok and text:
+            add_footnote(self._editor, text)
+
+    def _add_endnote(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.references import add_endnote
+
+        text, ok = QInputDialog.getMultiLineText(
+            self, "Nota al final", "Texto de la nota:"
+        )
+        if ok and text:
+            add_endnote(self._editor, text)
+
+    def _insert_cross_reference(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.references import insert_cross_reference
+
+        target, ok = QInputDialog.getText(
+            self, "Referencia cruzada", "Título o marcador de destino:"
+        )
+        if ok and target:
+            insert_cross_reference(self._editor, target)
+
+    def _add_source(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.references import add_source
+
+        author, ok = QInputDialog.getText(self, "Nueva fuente", "Autor:")
+        if not ok:
+            return
+        year, ok = QInputDialog.getText(self, "Nueva fuente", "Año:")
+        if not ok:
+            return
+        title, ok = QInputDialog.getText(self, "Nueva fuente", "Título:")
+        if ok:
+            add_source(self._editor, author, year, title)
+
+    def _insert_citation(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.references import insert_citation, sources
+
+        entries = sources(self._editor)
+        if not entries:
+            self._show_error("No hay fuentes guardadas. Añada una fuente primero.")
+            return
+        labels = [f"{s['author']} ({s['year']})" for s in entries]
+        label, ok = QInputDialog.getItem(
+            self, "Insertar cita", "Fuente:", labels, 0, False
+        )
+        if ok:
+            author, year = label.rsplit(" (", 1)
+            insert_citation(self._editor, author, year[:-1])
+
+    def _insert_bibliography(self) -> None:
+        from rword.core.references import insert_bibliography
+
+        insert_bibliography(self._editor)
+
+    def _insert_caption(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.references import insert_caption
+
+        text, ok = QInputDialog.getText(
+            self, "Leyenda", "Texto de la leyenda:"
+        )
+        if ok and text:
+            insert_caption(self._editor, text)
+
+    def _table_of_figures(self) -> None:
+        from rword.core.references import insert_table_of_figures
+
+        insert_table_of_figures(self._editor)
+
+    def _mark_index(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.references import mark_index_entry
+
+        entry, ok = QInputDialog.getText(
+            self, "Marcar entrada de índice", "Entrada:"
+        )
+        if ok and entry:
+            mark_index_entry(self._editor, entry)
+
+    def _insert_index(self) -> None:
+        from rword.core.references import insert_index
+
+        insert_index(self._editor)
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu
