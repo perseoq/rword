@@ -8,6 +8,7 @@ WINDOW_GEOMETRY_KEY = "ui/window_geometry"
 WINDOW_STATE_KEY = "ui/window_state"
 TOOLBAR_VISIBLE_KEY = "ui/toolbar_visible"
 FORMATBAR_VISIBLE_KEY = "ui/formatbar_visible"
+PARAGRAPHBAR_VISIBLE_KEY = "ui/paragraphbar_visible"
 STATUSBAR_VISIBLE_KEY = "ui/statusbar_visible"
 
 TEXT_FILTER = "Documentos de texto (*.txt *.md *.rst *.log)"

@@ -23,18 +23,21 @@ from rword.config import (
     APP_VERSION,
     FORMATBAR_VISIBLE_KEY,
     HTML_FILTER,
+    PARAGRAPHBAR_VISIBLE_KEY,
     STATUSBAR_VISIBLE_KEY,
     TEXT_FILTER,
     TOOLBAR_VISIBLE_KEY,
     WINDOW_GEOMETRY_KEY,
     WINDOW_STATE_KEY,
 )
-from rword.core import formatting
+from rword.core import formatting, paragraph
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
+from rword.ui.dialogs.paragraph import ParagraphDialog
 from rword.ui.editor import Editor
 from rword.ui.format_bar import FormatBar
+from rword.ui.paragraph_bar import ParagraphBar
 
 FILE_DIALOG_FILTER = f"{TEXT_FILTER};;{HTML_FILTER};;{ALL_FILES_FILTER}"
 
@@ -49,6 +52,7 @@ class MainWindow(QMainWindow):
         self._untitled_counter = 0
         self._find_dialog: FindReplaceDialog | None = None
         self._go_to_dialog: GoToDialog | None = None
+        self._paragraph_dialog: ParagraphDialog | None = None
         self._clipboard_history = ClipboardHistory()
         self.setCentralWidget(self._editor)
         self._build_actions()
@@ -242,6 +246,71 @@ class MainWindow(QMainWindow):
             lambda: formatting.apply_case(self._editor, "toggle")
         )
 
+        self.paragraph_dialog_action = QAction("Párrafo...", self)
+        self.paragraph_dialog_action.triggered.connect(self._show_paragraph_dialog)
+
+        self.align_left_action = QAction("Alinear izquierda", self)
+        self.align_left_action.setShortcut("Ctrl+L")
+        self.align_left_action.triggered.connect(
+            lambda: paragraph.set_alignment(self._editor, "left")
+        )
+
+        self.align_center_action = QAction("Centrar", self)
+        self.align_center_action.setShortcut("Ctrl+E")
+        self.align_center_action.triggered.connect(
+            lambda: paragraph.set_alignment(self._editor, "center")
+        )
+
+        self.align_right_action = QAction("Alinear derecha", self)
+        self.align_right_action.setShortcut("Ctrl+R")
+        self.align_right_action.triggered.connect(
+            lambda: paragraph.set_alignment(self._editor, "right")
+        )
+
+        self.align_justify_action = QAction("Justificar", self)
+        self.align_justify_action.setShortcut("Ctrl+J")
+        self.align_justify_action.triggered.connect(
+            lambda: paragraph.set_alignment(self._editor, "justify")
+        )
+
+        self.indent_more_action = QAction("Aumentar sangría", self)
+        self.indent_more_action.triggered.connect(
+            lambda: paragraph.increase_indent(self._editor)
+        )
+
+        self.indent_less_action = QAction("Disminuir sangría", self)
+        self.indent_less_action.triggered.connect(
+            lambda: paragraph.decrease_indent(self._editor)
+        )
+
+        self.bullets_action = QAction("Viñetas", self)
+        self.bullets_action.triggered.connect(
+            lambda: paragraph.toggle_bullets(self._editor)
+        )
+
+        self.numbering_action = QAction("Numeración", self)
+        self.numbering_action.triggered.connect(
+            lambda: paragraph.toggle_numbering(self._editor)
+        )
+
+        self.spacing_single_action = QAction("Interlineado sencillo", self)
+        self.spacing_single_action.triggered.connect(
+            lambda: paragraph.set_line_spacing(self._editor, 1.0)
+        )
+
+        self.spacing_1_5_action = QAction("Interlineado 1,5", self)
+        self.spacing_1_5_action.triggered.connect(
+            lambda: paragraph.set_line_spacing(self._editor, 1.5)
+        )
+
+        self.spacing_double_action = QAction("Interlineado doble", self)
+        self.spacing_double_action.triggered.connect(
+            lambda: paragraph.set_line_spacing(self._editor, 2.0)
+        )
+
+        self.shading_clear_action = QAction("Sin sombreado", self)
+        self.shading_clear_action.triggered.connect(self._clear_paragraph_shading)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -251,6 +320,11 @@ class MainWindow(QMainWindow):
         self.toggle_formatbar_action.setCheckable(True)
         self.toggle_formatbar_action.setChecked(True)
         self.toggle_formatbar_action.triggered.connect(self._toggle_formatbar)
+
+        self.toggle_paragraphbar_action = QAction("Barra de párrafo", self)
+        self.toggle_paragraphbar_action.setCheckable(True)
+        self.toggle_paragraphbar_action.setChecked(True)
+        self.toggle_paragraphbar_action.triggered.connect(self._toggle_paragraphbar)
 
         self.toggle_statusbar_action = QAction("Barra de estado", self)
         self.toggle_statusbar_action.setCheckable(True)
@@ -320,10 +394,30 @@ class MainWindow(QMainWindow):
         case_menu.addAction(self.case_toggle_action)
         format_menu.addSeparator()
         format_menu.addAction(self.clear_format_action)
+        paragraph_menu = format_menu.addMenu("&Párrafo")
+        paragraph_menu.addAction(self.paragraph_dialog_action)
+        paragraph_menu.addSeparator()
+        paragraph_menu.addAction(self.align_left_action)
+        paragraph_menu.addAction(self.align_center_action)
+        paragraph_menu.addAction(self.align_right_action)
+        paragraph_menu.addAction(self.align_justify_action)
+        paragraph_menu.addSeparator()
+        paragraph_menu.addAction(self.indent_more_action)
+        paragraph_menu.addAction(self.indent_less_action)
+        paragraph_menu.addSeparator()
+        paragraph_menu.addAction(self.bullets_action)
+        paragraph_menu.addAction(self.numbering_action)
+        paragraph_menu.addSeparator()
+        paragraph_menu.addAction(self.spacing_single_action)
+        paragraph_menu.addAction(self.spacing_1_5_action)
+        paragraph_menu.addAction(self.spacing_double_action)
+        paragraph_menu.addSeparator()
+        paragraph_menu.addAction(self.shading_clear_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.toggle_formatbar_action)
+        view_menu.addAction(self.toggle_paragraphbar_action)
         view_menu.addAction(self.toggle_statusbar_action)
 
         help_menu = self.menuBar().addMenu("&Ayuda")
@@ -347,6 +441,9 @@ class MainWindow(QMainWindow):
 
         self.format_bar = FormatBar(self._editor, self)
         self.addToolBar(self.format_bar)
+
+        self.paragraph_bar = ParagraphBar(self._editor, self)
+        self.addToolBar(self.paragraph_bar)
 
     def _build_statusbar(self) -> None:
         self.words_label = QLabel(self)
@@ -545,6 +642,21 @@ class MainWindow(QMainWindow):
     def _toggle_formatbar(self, checked: bool) -> None:
         self.format_bar.setVisible(checked)
 
+    def _toggle_paragraphbar(self, checked: bool) -> None:
+        self.paragraph_bar.setVisible(checked)
+
+    def _show_paragraph_dialog(self) -> None:
+        if self._paragraph_dialog is None:
+            self._paragraph_dialog = ParagraphDialog(self._editor, self)
+        self._paragraph_dialog._load_current()
+        self._paragraph_dialog.show()
+        self._paragraph_dialog.raise_()
+
+    def _clear_paragraph_shading(self) -> None:
+        from PySide6.QtGui import QColor
+
+        paragraph.set_paragraph_shading(self._editor, QColor("transparent"))
+
     def _choose_font(self) -> None:
         current = self._editor.currentCharFormat()
         family = current.fontFamilies()[0] if current.fontFamilies() else "Sans Serif"
@@ -597,6 +709,11 @@ class MainWindow(QMainWindow):
         formatbar_visible = self._settings.value(FORMATBAR_VISIBLE_KEY, True, type=bool)
         self.format_bar.setVisible(formatbar_visible)
         self.toggle_formatbar_action.setChecked(formatbar_visible)
+        paragraphbar_visible = self._settings.value(
+            PARAGRAPHBAR_VISIBLE_KEY, True, type=bool
+        )
+        self.paragraph_bar.setVisible(paragraphbar_visible)
+        self.toggle_paragraphbar_action.setChecked(paragraphbar_visible)
         statusbar_visible = self._settings.value(
             STATUSBAR_VISIBLE_KEY, True, type=bool
         )
@@ -614,6 +731,9 @@ class MainWindow(QMainWindow):
         )
         self._settings.setValue(
             FORMATBAR_VISIBLE_KEY, self.format_bar.isVisible()
+        )
+        self._settings.setValue(
+            PARAGRAPHBAR_VISIBLE_KEY, self.paragraph_bar.isVisible()
         )
         self._settings.setValue(
             STATUSBAR_VISIBLE_KEY, self.statusBar().isVisible()
