@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent
 from PySide6.QtWidgets import QTextEdit
 
 from rword.config import HTML_EXTENSIONS
+
+_LINE_NUMBER_WIDTH = 36
+_WATERMARK_COLOR = QColor(180, 180, 180, 80)
 
 
 class Editor(QTextEdit):
@@ -17,6 +22,8 @@ class Editor(QTextEdit):
         self.setAcceptRichText(True)
         self.setUndoRedoEnabled(True)
         self._file_path: Path | None = None
+        self._line_numbers_enabled = False
+        self._watermark = ""
 
     @property
     def file_path(self) -> Path | None:
@@ -53,3 +60,70 @@ class Editor(QTextEdit):
     def character_count(self) -> int:
         """Número de caracteres en el documento actual."""
         return len(self.toPlainText())
+
+    def set_line_numbers_enabled(self, enabled: bool) -> None:
+        self._line_numbers_enabled = enabled
+        left = _LINE_NUMBER_WIDTH if enabled else 0
+        self.setViewportMargins(left, 0, 0, 0)
+        self.viewport().update()
+
+    def line_numbers_enabled(self) -> bool:
+        return self._line_numbers_enabled
+
+    def set_watermark(self, text: str) -> None:
+        self._watermark = text
+        self.viewport().update()
+
+    def watermark(self) -> str:
+        return self._watermark
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        if self._line_numbers_enabled:
+            self._paint_line_numbers()
+        super().paintEvent(event)
+        if self._watermark:
+            self._paint_watermark()
+
+    def _paint_line_numbers(self) -> None:
+        painter = QPainter(self.viewport())
+        font = QFont(self.font())
+        font.setPointSizeF(max(7.0, font.pointSizeF() - 1))
+        painter.setFont(font)
+        first_block = self.cursorForPosition(QPointF(0, 0)).block()
+        current = self.textCursor().block()
+        block = first_block
+        y = -self.verticalScrollBar().value()
+        while block.isValid() and y < self.viewport().height():
+            number = block.blockNumber() + 1
+            rect = self.blockBoundingRect(block)
+            if block == current:
+                painter.setPen(QColor("#c00000"))
+            else:
+                painter.setPen(QColor(140, 140, 140))
+            painter.drawText(
+                -self.verticalScrollBar().value() + 8,
+                y + int(rect.height() / 2) + 4,
+                _LINE_NUMBER_WIDTH - 12,
+                20,
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                str(number),
+            )
+            y += int(rect.height())
+            block = block.next()
+        painter.end()
+
+    def _paint_watermark(self) -> None:
+        painter = QPainter(self.viewport())
+        painter.save()
+        painter.setPen(_WATERMARK_COLOR)
+        font = QFont(self.font())
+        font.setPointSizeF(max(24.0, font.pointSizeF() * 2.5))
+        font.setBold(True)
+        painter.setFont(font)
+        painter.translate(self.viewport().width() / 2.0, self.viewport().height() / 2.0)
+        painter.rotate(-30.0)
+        painter.drawText(
+            QPointF(0, 0), self._watermark
+        )
+        painter.restore()
+        painter.end()

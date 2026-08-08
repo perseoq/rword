@@ -31,11 +31,13 @@ from rword.config import (
     WINDOW_STATE_KEY,
 )
 from rword.core import formatting, paragraph
+from rword.core.pages import apply_page_setup, current_page_setup
 from rword.core.styles import FormatPainter, Style, StyleManager
 from rword.core.themes import ThemeManager, apply_theme
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
+from rword.ui.dialogs.page_setup import PageSetupDialog
 from rword.ui.dialogs.paragraph import ParagraphDialog
 from rword.ui.dialogs.style import StyleDialog
 from rword.ui.dialogs.style_organizer import StyleOrganizerDialog
@@ -334,6 +336,33 @@ class MainWindow(QMainWindow):
         self.painter_action.setCheckable(True)
         self.painter_action.triggered.connect(self._toggle_format_painter)
 
+        self.page_setup_action = QAction("Configurar página...", self)
+        self.page_setup_action.triggered.connect(self._show_page_setup)
+
+        self.page_break_action = QAction("Salto de página", self)
+        self.page_break_action.setShortcut("Ctrl+Return")
+        self.page_break_action.triggered.connect(self._insert_page_break)
+
+        self.section_break_action = QAction("Salto de sección", self)
+        self.section_break_action.triggered.connect(self._insert_section_break)
+
+        self.columns_one_action = self._columns_action("Una columna", 1)
+        self.columns_two_action = self._columns_action("Dos columnas", 2)
+        self.columns_three_action = self._columns_action("Tres columnas", 3)
+
+        self.line_numbers_action = QAction("Numeración de líneas", self)
+        self.line_numbers_action.setCheckable(True)
+        self.line_numbers_action.triggered.connect(self._toggle_line_numbers)
+
+        self.watermark_action = QAction("Marca de agua...", self)
+        self.watermark_action.triggered.connect(self._set_watermark)
+
+        self._columns_action_labels = (
+            self.columns_one_action,
+            self.columns_two_action,
+            self.columns_three_action,
+        )
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -436,6 +465,20 @@ class MainWindow(QMainWindow):
         paragraph_menu.addAction(self.spacing_double_action)
         paragraph_menu.addSeparator()
         paragraph_menu.addAction(self.shading_clear_action)
+
+        page_menu = format_menu.addMenu("&Página")
+        page_menu.addAction(self.page_setup_action)
+        page_menu.addSeparator()
+        page_menu.addAction(self.page_break_action)
+        page_menu.addAction(self.section_break_action)
+        page_menu.addSeparator()
+        columns_menu = page_menu.addMenu("&Columnas")
+        columns_menu.addAction(self.columns_one_action)
+        columns_menu.addAction(self.columns_two_action)
+        columns_menu.addAction(self.columns_three_action)
+        page_menu.addSeparator()
+        page_menu.addAction(self.line_numbers_action)
+        page_menu.addAction(self.watermark_action)
 
         styles_menu = self.menuBar().addMenu("&Estilos")
         self.styles_menu = styles_menu
@@ -758,6 +801,60 @@ class MainWindow(QMainWindow):
             self._format_painter.capture(self._editor)
         else:
             self._format_painter.clear()
+
+    def _columns_action(self, label, count):
+        action = QAction(label, self)
+        action.setCheckable(True)
+        action.triggered.connect(lambda checked, n=count: self._set_columns(n))
+        return action
+
+    def _set_columns(self, count: int) -> None:
+        from rword.core.pages import set_columns
+
+        set_columns(self._editor, count)
+        for action, index in zip(
+            self._columns_action_labels, (1, 2, 3), strict=True
+        ):
+            action.setChecked(index == count)
+
+    def _show_page_setup(self) -> None:
+        setup = current_page_setup(self._editor)
+        from PySide6.QtGui import QPalette
+
+        setup.page_color = self._editor.palette().color(
+            QPalette.ColorRole.Base
+        ).name()
+        dialog = PageSetupDialog(setup, self)
+        if dialog.exec():
+            new_setup = dialog.setup()
+            apply_page_setup(self._editor, new_setup)
+            palette = self._editor.palette()
+            palette.setColor(QPalette.ColorRole.Base, QColor(new_setup.page_color))
+            self._editor.setPalette(palette)
+            self._editor.set_watermark(new_setup.watermark)
+
+    def _insert_page_break(self) -> None:
+        from rword.core.pages import insert_page_break
+
+        insert_page_break(self._editor)
+
+    def _insert_section_break(self) -> None:
+        from rword.core.pages import insert_section_break
+
+        insert_section_break(self._editor)
+
+    def _toggle_line_numbers(self, checked: bool) -> None:
+        self._editor.set_line_numbers_enabled(checked)
+
+    def _set_watermark(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        current = self._editor.watermark()
+        text, ok = QInputDialog.getText(
+            self, "Marca de agua", "Texto de la marca de agua:", text=current
+        )
+        if ok:
+            self._editor.set_watermark(text)
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu
