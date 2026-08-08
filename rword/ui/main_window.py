@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QLabel,
     QMainWindow,
@@ -25,6 +26,9 @@ from rword.config import (
     WINDOW_GEOMETRY_KEY,
     WINDOW_STATE_KEY,
 )
+from rword.ui.dialogs.clipboard_history import ClipboardHistory
+from rword.ui.dialogs.find_replace import FindReplaceDialog
+from rword.ui.dialogs.go_to import GoToDialog
 from rword.ui.editor import Editor
 
 FILE_DIALOG_FILTER = f"{TEXT_FILTER};;{HTML_FILTER};;{ALL_FILES_FILTER}"
@@ -38,6 +42,9 @@ class MainWindow(QMainWindow):
         self._editor = Editor(self)
         self._settings = QSettings()
         self._untitled_counter = 0
+        self._find_dialog: FindReplaceDialog | None = None
+        self._go_to_dialog: GoToDialog | None = None
+        self._clipboard_history = ClipboardHistory()
         self.setCentralWidget(self._editor)
         self._build_actions()
         self._build_menus()
@@ -45,6 +52,7 @@ class MainWindow(QMainWindow):
         self._build_statusbar()
         self._new_document()
         self._connect_editor_signals()
+        self._connect_clipboard()
         self._restore_settings()
 
     def _build_actions(self) -> None:
@@ -96,6 +104,41 @@ class MainWindow(QMainWindow):
         self.select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
         self.select_all_action.triggered.connect(self._editor.selectAll)
 
+        self.find_action = QAction("Buscar...", self)
+        self.find_action.setShortcut(QKeySequence.StandardKey.Find)
+        self.find_action.triggered.connect(self._show_find_dialog)
+
+        self.find_next_action = QAction("Buscar siguiente", self)
+        self.find_next_action.setShortcut(QKeySequence.StandardKey.FindNext)
+        self.find_next_action.triggered.connect(self._find_next)
+
+        self.find_previous_action = QAction("Buscar anterior", self)
+        self.find_previous_action.setShortcut(QKeySequence.StandardKey.FindPrevious)
+        self.find_previous_action.triggered.connect(self._find_previous)
+
+        self.replace_action = QAction("Reemplazar...", self)
+        self.replace_action.setShortcut(QKeySequence.StandardKey.Replace)
+        self.replace_action.triggered.connect(self._show_find_dialog)
+
+        self.go_to_action = QAction("Ir a línea...", self)
+        self.go_to_action.setShortcut("Ctrl+G")
+        self.go_to_action.triggered.connect(self._show_go_to_dialog)
+
+        self.select_word_action = QAction("Seleccionar palabra", self)
+        self.select_word_action.triggered.connect(self._select_word)
+
+        self.select_line_action = QAction("Seleccionar línea", self)
+        self.select_line_action.triggered.connect(self._select_line)
+
+        self.select_paragraph_action = QAction("Seleccionar párrafo", self)
+        self.select_paragraph_action.triggered.connect(self._select_paragraph)
+
+        self.paste_plain_action = QAction("Pegar texto sin formato", self)
+        self.paste_plain_action.triggered.connect(self._paste_plain_text)
+
+        self.clipboard_clear_action = QAction("Limpiar historial", self)
+        self.clipboard_clear_action.triggered.connect(self._clear_clipboard)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -127,8 +170,20 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.cut_action)
         edit_menu.addAction(self.copy_action)
         edit_menu.addAction(self.paste_action)
+        self.clipboard_menu = edit_menu.addMenu("&Portapapeles")
+        self._rebuild_clipboard_menu()
         edit_menu.addSeparator()
-        edit_menu.addAction(self.select_all_action)
+        edit_menu.addAction(self.find_action)
+        edit_menu.addAction(self.find_next_action)
+        edit_menu.addAction(self.find_previous_action)
+        edit_menu.addAction(self.replace_action)
+        edit_menu.addAction(self.go_to_action)
+        edit_menu.addSeparator()
+        select_menu = edit_menu.addMenu("&Seleccionar")
+        select_menu.addAction(self.select_word_action)
+        select_menu.addAction(self.select_line_action)
+        select_menu.addAction(self.select_paragraph_action)
+        select_menu.addAction(self.select_all_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -170,6 +225,84 @@ class MainWindow(QMainWindow):
         self._editor.copyAvailable.connect(self.cut_action.setEnabled)
         self._editor.undoAvailable.connect(self.undo_action.setEnabled)
         self._editor.redoAvailable.connect(self.redo_action.setEnabled)
+
+    def _connect_clipboard(self) -> None:
+        self._clipboard = QApplication.clipboard()
+        self._clipboard.dataChanged.connect(self._on_clipboard_changed)
+
+    def _on_clipboard_changed(self) -> None:
+        self._clipboard_history.add(self._clipboard.text())
+        self._rebuild_clipboard_menu()
+
+    def _rebuild_clipboard_menu(self) -> None:
+        self.clipboard_menu.clear()
+        items = self._clipboard_history.items
+        if not items:
+            action = self.clipboard_menu.addAction("(vacío)")
+            action.setEnabled(False)
+        else:
+            for text in items:
+                preview = text.replace("\n", " ").strip()
+                if len(preview) > 40:
+                    preview = preview[:40] + "…"
+                action = self.clipboard_menu.addAction(f"Pegar: “{preview}”")
+                action.triggered.connect(
+                    lambda checked=False, t=text: self._paste_clipboard_item(t)
+                )
+        self.clipboard_menu.addSeparator()
+        self.clipboard_menu.addAction(self.paste_plain_action)
+        self.clipboard_menu.addAction(self.clipboard_clear_action)
+
+    def _paste_clipboard_item(self, text: str) -> None:
+        self._editor.insertPlainText(text)
+
+    def _paste_plain_text(self) -> None:
+        self._editor.insertPlainText(self._clipboard.text())
+
+    def _clear_clipboard(self) -> None:
+        self._clipboard_history.clear()
+        self._rebuild_clipboard_menu()
+
+    def _show_find_dialog(self) -> None:
+        if self._find_dialog is None:
+            self._find_dialog = FindReplaceDialog(self._editor, self)
+        selected = self._editor.textCursor().selectedText()
+        self._find_dialog.show_and_find(selected)
+
+    def _show_go_to_dialog(self) -> None:
+        if self._go_to_dialog is None:
+            self._go_to_dialog = GoToDialog(self._editor, self)
+        self._go_to_dialog.show()
+        self._go_to_dialog.raise_()
+
+    def _find_next(self) -> None:
+        if self._find_dialog is None:
+            self._show_find_dialog()
+            return
+        self._find_dialog.show()
+        self._find_dialog._find_next()
+
+    def _find_previous(self) -> None:
+        if self._find_dialog is None:
+            self._show_find_dialog()
+            return
+        self._find_dialog.show()
+        self._find_dialog._find_previous()
+
+    def _select_word(self) -> None:
+        cursor = self._editor.textCursor()
+        cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+        self._editor.setTextCursor(cursor)
+
+    def _select_line(self) -> None:
+        cursor = self._editor.textCursor()
+        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
+        self._editor.setTextCursor(cursor)
+
+    def _select_paragraph(self) -> None:
+        cursor = self._editor.textCursor()
+        cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+        self._editor.setTextCursor(cursor)
 
     def _new_document(self) -> None:
         if not self._confirm_save_before_closing():
