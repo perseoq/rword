@@ -44,6 +44,7 @@ from rword.core.export import (
     export_text,
 )
 from rword.core.pages import apply_page_setup, current_page_setup
+from rword.core.preferences import DARK_STYLESHEET
 from rword.core.styles import FormatPainter, Style, StyleManager
 from rword.core.tables import TABLE_STYLES
 from rword.core.themes import ThemeManager, apply_theme
@@ -115,6 +116,8 @@ class MainWindow(QMainWindow):
         self._connect_editor_signals()
         self._connect_clipboard()
         apply_theme(self._editor, self._theme_manager.current)
+        self._plugin_manager.load_enabled(self)
+        self._apply_saved_preferences()
         self._restore_settings()
     def _build_actions(self) -> None:
         self.new_action = QAction("Nuevo", self)
@@ -898,6 +901,12 @@ class MainWindow(QMainWindow):
         self._macro_recorder = None
         self._macro_shortcut_actions: list = []
 
+        from rword.core.plugins import PluginManager
+
+        self._plugin_manager = PluginManager(
+            self._settings, Path(__file__).resolve().parent.parent.parent / "plugins"
+        )
+
         self.data_source_action = QAction("Seleccionar origen de datos...", self)
         self.data_source_action.triggered.connect(self._select_data_source)
 
@@ -958,6 +967,18 @@ class MainWindow(QMainWindow):
         self.immersive_action = QAction("Enfoque inmersivo", self)
         self.immersive_action.setCheckable(True)
         self.immersive_action.triggered.connect(self._toggle_immersive)
+
+        self.preferences_action = QAction("Preferencias...", self)
+        self.preferences_action.triggered.connect(self._show_preferences)
+
+        self.customize_toolbar_action = QAction("Personalizar barra de herramientas...", self)
+        self.customize_toolbar_action.triggered.connect(self._customize_toolbar)
+
+        self.shortcuts_action = QAction("Atajos de teclado...", self)
+        self.shortcuts_action.triggered.connect(self._show_shortcuts)
+
+        self.manage_plugins_action = QAction("Administrar complementos...", self)
+        self.manage_plugins_action.triggered.connect(self._manage_plugins)
 
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
@@ -1315,6 +1336,12 @@ class MainWindow(QMainWindow):
         accessibility_menu.addAction(self.high_contrast_action)
         accessibility_menu.addAction(self.immersive_action)
         accessibility_menu.addAction(self.toggle_navigation_action)
+
+        customize_menu = self.menuBar().addMenu("&Personalizar")
+        customize_menu.addAction(self.preferences_action)
+        customize_menu.addAction(self.customize_toolbar_action)
+        customize_menu.addAction(self.shortcuts_action)
+        customize_menu.addAction(self.manage_plugins_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
@@ -2919,6 +2946,115 @@ class MainWindow(QMainWindow):
             self.format_bar.show()
             self.paragraph_bar.show()
             self.statusBar().show()
+
+    def _apply_saved_preferences(self) -> None:
+        from rword.core.preferences import UserPreferences
+
+        preferences = UserPreferences(self._settings)
+        self._set_zoom(preferences.default_zoom)
+        if preferences.dark_theme:
+            QApplication.instance().setStyleSheet(DARK_STYLESHEET)
+
+    def _show_preferences(self) -> None:
+        from rword.core.preferences import UserPreferences
+        from rword.ui.dialogs.preferences import PreferencesDialog
+
+        preferences = UserPreferences(self._settings)
+        dialog = PreferencesDialog(preferences, self)
+        if dialog.exec():
+            if preferences.dark_theme:
+                QApplication.instance().setStyleSheet(DARK_STYLESHEET)
+            else:
+                QApplication.instance().setStyleSheet("")
+            self._collaboration_manager().set_username(preferences.username)
+            self._update_presence_label()
+
+    def _customize_toolbar(self) -> None:
+        from rword.ui.dialogs.customize import ToolbarCustomizeDialog
+
+        actions = {
+            "new": self.new_action,
+            "open": self.open_action,
+            "save": self.save_action,
+            "undo": self.undo_action,
+            "redo": self.redo_action,
+            "cut": self.cut_action,
+            "copy": self.copy_action,
+            "paste": self.paste_action,
+            "painter": self.painter_action,
+        }
+        dialog = ToolbarCustomizeDialog(actions, self._settings, self.toolbar, self)
+        if dialog.exec():
+            self._rebuild_toolbar_from_settings()
+
+    def _rebuild_toolbar_from_settings(self) -> None:
+        from rword.ui.dialogs.customize import TOOLBAR_ACTIONS_KEY
+
+        stored = self._settings.value(TOOLBAR_ACTIONS_KEY, [])
+        enabled = set(stored) if stored else None
+        mapping = {
+            "new": self.new_action,
+            "open": self.open_action,
+            "save": self.save_action,
+            "undo": self.undo_action,
+            "redo": self.redo_action,
+            "cut": self.cut_action,
+            "copy": self.copy_action,
+            "paste": self.paste_action,
+            "painter": self.painter_action,
+        }
+        order = ["new", "open", "save", "undo", "redo", "cut", "copy", "paste", "painter"]
+        self.toolbar.clear()
+        for key in order:
+            if key in mapping and (enabled is None or key in enabled):
+                self.toolbar.addAction(mapping[key])
+                if key == "save" or key == "redo":
+                    self.toolbar.addSeparator()
+
+    def _show_shortcuts(self) -> None:
+        from rword.ui.dialogs.customize import ShortcutsDialog
+
+        actions = {
+            "new": self.new_action,
+            "open": self.open_action,
+            "save": self.save_action,
+            "save_as": self.save_as_action,
+            "find": self.find_action,
+            "replace": self.replace_action,
+            "bold": self.bold_action,
+            "italic": self.italic_action,
+            "underline": self.underline_action,
+        }
+        dialog = ShortcutsDialog(actions, self._settings, self)
+        dialog.exec()
+
+    def _manage_plugins(self) -> None:
+        from PySide6.QtWidgets import (
+            QCheckBox,
+            QDialog,
+            QDialogButtonBox,
+            QVBoxLayout,
+        )
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Administrar complementos")
+        layout = QVBoxLayout(dialog)
+        checkboxes = {}
+        for plugin in self._plugin_manager.available():
+            check = QCheckBox(plugin.name, dialog)
+            check.setChecked(self._plugin_manager.is_enabled(plugin.name))
+            checkboxes[plugin.name] = check
+            layout.addWidget(check)
+        if not checkboxes:
+            from PySide6.QtWidgets import QLabel
+
+            layout.addWidget(QLabel("No se encontraron complementos.", dialog))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.exec()
+        for name, check in checkboxes.items():
+            self._plugin_manager.set_enabled(name, check.isChecked())
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:

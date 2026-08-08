@@ -30,7 +30,7 @@ PySide6 (Qt for Python).
 | 21 | **Combinación de correspondencia** | Origen de datos, campos, vista previa, filtros, cartas/etiquetas/sobres | ✅ Implementada |
 | 22 | **Colaboración** | Edición colaborativa, compartir, presencia, historial, permisos, resolución de conflictos | ✅ Implementada |
 | 23 | **Accesibilidad** | Comprobador, texto alternativo, teclado, lectores de pantalla, dictado, lectura en voz alta | ✅ Implementada |
-| 24 | **Personalización** | Cinta, barra rápida, temas visuales, modo oscuro, atajos, preferencias de usuario | Pendiente |
+| 24 | **Personalización** | Cinta, barra rápida, temas visuales, modo oscuro, atajos, preferencias de usuario | ✅ Implementada |
 | 25 | **IA — Infraestructura** | Cliente DeepSeek, gestión de API key, gestión de errores/tiempos, seguridad | Pendiente |
 | 26 | **IA — Escritura y corrección** | Redactar/continuar, resumir, reescribir, tono, expandir/reducir, ortografía/gramática avanzada, redundancias | Pendiente |
 | 27 | **IA — Traducción y análisis** | Traducir documento/selección (con formato), detección de idioma, ideas, conclusiones, legibilidad, público | Pendiente |
