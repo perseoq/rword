@@ -28,7 +28,7 @@ PySide6 (Qt for Python).
 | 19 | **Seguridad** | Solo lectura, contraseñas, restricciones, firmas digitales, inspección, marcar como final | ✅ Implementada |
 | 20 | **Automatización y macros** | Grabar/editar/ejecutar macros, asignar a botón/teclado, campos automáticos | ✅ Implementada |
 | 21 | **Combinación de correspondencia** | Origen de datos, campos, vista previa, filtros, cartas/etiquetas/sobres | ✅ Implementada |
-| 22 | **Colaboración** | Edición colaborativa, compartir, presencia, historial, permisos, resolución de conflictos | Pendiente |
+| 22 | **Colaboración** | Edición colaborativa, compartir, presencia, historial, permisos, resolución de conflictos | ✅ Implementada |
 | 23 | **Accesibilidad** | Comprobador, texto alternativo, teclado, lectores de pantalla, dictado, lectura en voz alta | Pendiente |
 | 24 | **Personalización** | Cinta, barra rápida, temas visuales, modo oscuro, atajos, preferencias de usuario | Pendiente |
 | 25 | **IA — Infraestructura** | Cliente DeepSeek, gestión de API key, gestión de errores/tiempos, seguridad | Pendiente |

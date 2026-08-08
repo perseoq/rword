@@ -925,6 +925,21 @@ class MainWindow(QMainWindow):
         self.email_merge_action = QAction("Enviar por correo...", self)
         self.email_merge_action.triggered.connect(self._send_email)
 
+        self.collab_dialog_action = QAction("Colaboración...", self)
+        self.collab_dialog_action.triggered.connect(self._show_collaboration)
+
+        self.set_username_action = QAction("Nombre de usuario...", self)
+        self.set_username_action.triggered.connect(self._set_username)
+
+        self.track_authors_action = QAction("Seguimiento de autores", self)
+        self.track_authors_action.setCheckable(True)
+        self.track_authors_action.triggered.connect(self._toggle_track_authors)
+
+        self.presence_action = QAction("Estado en línea", self)
+        self.presence_action.setCheckable(True)
+        self.presence_action.setChecked(True)
+        self.presence_action.triggered.connect(self._toggle_presence)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1265,6 +1280,12 @@ class MainWindow(QMainWindow):
         mail_menu.addSeparator()
         mail_menu.addAction(self.email_merge_action)
 
+        collab_menu = self.menuBar().addMenu("&Colaboración")
+        collab_menu.addAction(self.collab_dialog_action)
+        collab_menu.addAction(self.set_username_action)
+        collab_menu.addAction(self.presence_action)
+        collab_menu.addAction(self.track_authors_action)
+
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
         modes_menu.addAction(self.read_mode_action)
@@ -1332,9 +1353,12 @@ class MainWindow(QMainWindow):
         self.words_label = QLabel(self)
         self.chars_label = QLabel(self)
         self.modified_label = QLabel(self)
+        self._presence_label = QLabel(self)
+        self.statusBar().addPermanentWidget(self._presence_label)
         self.statusBar().addPermanentWidget(self.words_label)
         self.statusBar().addPermanentWidget(self.chars_label)
         self.statusBar().addPermanentWidget(self.modified_label)
+        self._update_presence_label()
 
     def _connect_editor_signals(self) -> None:
         self._editor.document().modificationChanged.connect(
@@ -1432,6 +1456,7 @@ class MainWindow(QMainWindow):
         self._editor.set_file_path(None)
         self._update_title()
         self._update_statusbar()
+        self._log_activity("Nuevo documento")
 
     def _open_document(self) -> None:
         if not self._confirm_save_before_closing():
@@ -1478,6 +1503,7 @@ class MainWindow(QMainWindow):
         self._editor.document().setModified(False)
         self._update_title()
         self._update_statusbar()
+        self._log_activity("Documento abierto", path.name)
         return True
 
     def _save_document(self) -> None:
@@ -1507,6 +1533,8 @@ class MainWindow(QMainWindow):
             self._editor.save_file(path)
         except OSError as error:
             self._show_error(f"No se pudo guardar el archivo:\n{error}")
+            return
+        self._log_activity("Documento guardado", path.name)
 
     def _close_document(self) -> None:
         if not self._confirm_save_before_closing():
@@ -2749,6 +2777,52 @@ class MainWindow(QMainWindow):
             link = mailto_link(record, subject)
             if link:
                 QDesktopServices.openUrl(QUrl(link))
+
+    def _collaboration_manager(self):
+        from rword.core.collaboration import CollaborationManager
+
+        if not hasattr(self, "_collab_manager"):
+            self._collab_manager = CollaborationManager(self._editor, self._settings)
+        return self._collab_manager
+
+    def _show_collaboration(self) -> None:
+        from rword.ui.dialogs.collaboration import CollaborationDialog
+
+        dialog = CollaborationDialog(self._collaboration_manager(), self)
+        dialog.exec()
+
+    def _set_username(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        manager = self._collaboration_manager()
+        name, ok = QInputDialog.getText(
+            self, "Nombre de usuario", "Nombre:", text=manager.username
+        )
+        if ok and name.strip():
+            manager.set_username(name.strip())
+            self._update_presence_label()
+            self._collaboration_manager().log(
+                "Cambió el nombre de usuario", name.strip()
+            )
+
+    def _toggle_track_authors(self, checked: bool) -> None:
+        self._collaboration_manager().set_track_authors(checked)
+
+    def _toggle_presence(self, checked: bool) -> None:
+        self._presence_label.setVisible(checked)
+        self._collaboration_manager().log(
+            "Conectado" if checked else "Desconectado"
+        )
+
+    def _update_presence_label(self) -> None:
+        if hasattr(self, "_presence_label"):
+            self._presence_label.setText(
+                f"● {self._collaboration_manager().username}"
+            )
+
+    def _log_activity(self, event: str, detail: str = "") -> None:
+        if hasattr(self, "_collab_manager"):
+            self._collab_manager.log(event, detail)
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
