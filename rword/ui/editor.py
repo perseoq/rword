@@ -5,7 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QKeyEvent,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+)
 from PySide6.QtWidgets import QTextEdit
 
 from rword.config import HTML_EXTENSIONS
@@ -26,6 +33,9 @@ class Editor(QTextEdit):
         self._file_path: Path | None = None
         self._line_numbers_enabled = False
         self._watermark = ""
+        self._track_changes = False
+        self._find_selections: list = []
+        self._comment_selections: list = []
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -34,6 +44,62 @@ class Editor(QTextEdit):
                 self.link_clicked.emit(href)
                 return
         super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if not self._track_changes:
+            super().keyPressEvent(event)
+            return
+        key = event.key()
+        if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            self._mark_deletion(key)
+            return
+        if len(event.text()) > 0:
+            self._insert_tracked_text(event.text())
+            return
+        super().keyPressEvent(event)
+
+    def _mark_deletion(self, key: int) -> None:
+        from rword.core.comments import deleted_format
+
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            cursor.mergeCharFormat(deleted_format())
+            cursor.clearSelection()
+            self.setTextCursor(cursor)
+            return
+        if key == Qt.Key.Key_Backspace:
+            if cursor.position() > 0:
+                cursor.setPosition(cursor.position() - 1)
+                cursor.setPosition(cursor.position() + 1, cursor.MoveMode.KeepAnchor)
+                cursor.mergeCharFormat(deleted_format())
+                cursor.clearSelection()
+                self.setTextCursor(cursor)
+        else:
+            cursor.setPosition(cursor.position())
+            cursor.setPosition(cursor.position() + 1, cursor.MoveMode.KeepAnchor)
+            cursor.mergeCharFormat(deleted_format())
+            cursor.clearSelection()
+            self.setTextCursor(cursor)
+
+    def _insert_tracked_text(self, text: str) -> None:
+        from rword.core.comments import inserted_format
+
+        cursor = self.textCursor()
+        cursor.insertText(text, inserted_format())
+        self.setTextCursor(cursor)
+
+    def set_track_changes(self, enabled: bool) -> None:
+        self._track_changes = enabled
+
+    def track_changes(self) -> bool:
+        return self._track_changes
+
+    def set_find_selections(self, selections: list) -> None:
+        self._find_selections = selections
+        self._refresh_extra_selections()
+
+    def _refresh_extra_selections(self) -> None:
+        self.setExtraSelections(self._find_selections + self._comment_selections)
 
     @property
     def file_path(self) -> Path | None:

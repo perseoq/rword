@@ -35,6 +35,7 @@ from rword.core.pages import apply_page_setup, current_page_setup
 from rword.core.styles import FormatPainter, Style, StyleManager
 from rword.core.tables import TABLE_STYLES
 from rword.core.themes import ThemeManager, apply_theme
+from rword.ui.comments_panel import CommentsPanel
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
@@ -72,6 +73,7 @@ class MainWindow(QMainWindow):
         self._theme_manager = ThemeManager(self._settings)
         self._format_painter = FormatPainter()
         self._navigation_panel: NavigationPanel | None = None
+        self._comments_panel: CommentsPanel | None = None
         self.setCentralWidget(self._editor)
         self._build_actions()
         self._build_menus()
@@ -635,6 +637,28 @@ class MainWindow(QMainWindow):
         self.insert_index_action = QAction("Índice analítico", self)
         self.insert_index_action.triggered.connect(self._insert_index)
 
+        self.add_comment_action = QAction("Nuevo comentario", self)
+        self.add_comment_action.triggered.connect(self._add_comment)
+
+        self.show_comments_action = QAction("Panel de comentarios", self)
+        self.show_comments_action.setCheckable(True)
+        self.show_comments_action.triggered.connect(
+            self._toggle_comments_panel
+        )
+
+        self.track_changes_action = QAction("Control de cambios", self)
+        self.track_changes_action.setCheckable(True)
+        self.track_changes_action.triggered.connect(self._toggle_track_changes)
+
+        self.accept_changes_action = QAction("Aceptar todos los cambios", self)
+        self.accept_changes_action.triggered.connect(self._accept_all_changes)
+
+        self.reject_changes_action = QAction("Rechazar todos los cambios", self)
+        self.reject_changes_action.triggered.connect(self._reject_all_changes)
+
+        self.compare_documents_action = QAction("Comparar documentos...", self)
+        self.compare_documents_action.triggered.connect(self._compare_documents)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -878,6 +902,16 @@ class MainWindow(QMainWindow):
         references_menu.addSeparator()
         references_menu.addAction(self.mark_index_action)
         references_menu.addAction(self.insert_index_action)
+
+        review_menu = self.menuBar().addMenu("&Revisión")
+        review_menu.addAction(self.add_comment_action)
+        review_menu.addAction(self.show_comments_action)
+        review_menu.addSeparator()
+        review_menu.addAction(self.track_changes_action)
+        review_menu.addAction(self.accept_changes_action)
+        review_menu.addAction(self.reject_changes_action)
+        review_menu.addSeparator()
+        review_menu.addAction(self.compare_documents_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -1740,6 +1774,65 @@ class MainWindow(QMainWindow):
         from rword.core.references import insert_index
 
         insert_index(self._editor)
+
+    def _add_comment(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core import comments
+
+        text, ok = QInputDialog.getMultiLineText(
+            self, "Nuevo comentario", "Texto del comentario:"
+        )
+        if ok and text:
+            comments.add_comment(self._editor, text)
+            comments.refresh_comment_highlights(self._editor)
+            self._refresh_comments_panel()
+
+    def _toggle_comments_panel(self, checked: bool) -> None:
+        if self._comments_panel is None:
+            self._comments_panel = CommentsPanel(self._editor, self)
+            self.addDockWidget(
+                Qt.DockWidgetArea.RightDockWidgetArea, self._comments_panel
+            )
+        self._comments_panel.setVisible(checked)
+
+    def _refresh_comments_panel(self) -> None:
+        if self._comments_panel is not None:
+            self._comments_panel.refresh()
+
+    def _toggle_track_changes(self, checked: bool) -> None:
+        self._editor.set_track_changes(checked)
+
+    def _accept_all_changes(self) -> None:
+        from rword.core.comments import accept_all_changes
+
+        accept_all_changes(self._editor)
+
+    def _reject_all_changes(self) -> None:
+        from rword.core.comments import reject_all_changes
+
+        reject_all_changes(self._editor)
+
+    def _compare_documents(self) -> None:
+        from rword.core.comments import compare_documents
+
+        original_path, _ = QFileDialog.getOpenFileName(
+            self, "Documento original", "", FILE_DIALOG_FILTER
+        )
+        if not original_path:
+            return
+        modified_path, _ = QFileDialog.getOpenFileName(
+            self, "Documento modificado", "", FILE_DIALOG_FILTER
+        )
+        if not modified_path:
+            return
+        try:
+            original = Path(original_path).read_text(encoding="utf-8")
+            modified = Path(modified_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            self._show_error(f"No se pudieron leer los documentos:\n{error}")
+            return
+        compare_documents(self._editor, original, modified)
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu

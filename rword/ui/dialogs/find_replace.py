@@ -148,7 +148,7 @@ class FindReplaceDialog(QDialog):
                 selection.format = self._highlight_format
                 selections.append(selection)
                 cursor = document.find(regex, cursor.position())
-        self._editor.setExtraSelections(selections)
+        self._editor.set_find_selections(selections)
 
     def _replace(self) -> None:
         text = self._find_input.text()
