@@ -14,7 +14,7 @@ PySide6 (Qt for Python).
 | 5 | **Estilos y temas** | Aplicar/crear/modificar/eliminar estilos, organizador, títulos, tema (colores/fuentes/efectos) | ✅ Implementada |
 | 6 | **Diseño de página** | Márgenes, orientación, tamaño, columnas, saltos, fondo/marca de agua, numeración de líneas, guiones | ✅ Implementada |
 | 7 | **Tablas** | Insertar/dibujar, filas/columnas, combinar/dividir, bordes/sombreado, ordenar, fórmulas, convertir texto↔tabla | ✅ Implementada |
-| 8 | **Imágenes** | Insertar, redimensionar/recortar, girar/voltear, ajuste de texto, brillo/contraste, efectos, agrupar/ordenar | Pendiente |
+| 8 | **Imágenes** | Insertar, redimensionar/recortar, girar/voltear, ajuste de texto, brillo/contraste, efectos, agrupar/ordenar | ✅ Implementada |
 | 9 | **Formas, cuadros y WordArt** | Formas, relleno/contorno, cuadros de texto, WordArt, efectos de texto, agrupar/alinear | Pendiente |
 | 10 | **Hipervínculos y navegación** | Enlaces, marcadores, panel de navegación por títulos/páginas | Pendiente |
 | 11 | **Encabezados y pies** | Insertar/editar encabezado y pie, número de página, primera página diferente, campos automáticos | Pendiente |

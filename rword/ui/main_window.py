@@ -38,6 +38,7 @@ from rword.core.themes import ThemeManager, apply_theme
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
+from rword.ui.dialogs.image import AdjustDialog, CropDialog, ImageSizeDialog
 from rword.ui.dialogs.insert_table import InsertTableDialog
 from rword.ui.dialogs.page_setup import PageSetupDialog
 from rword.ui.dialogs.paragraph import ParagraphDialog
@@ -461,6 +462,55 @@ class MainWindow(QMainWindow):
             )
             self.table_styles_actions[style_name] = action
 
+        self.insert_image_action = QAction("Insertar imagen...", self)
+        self.insert_image_action.triggered.connect(self._insert_image)
+
+        self.image_size_action = QAction("Tamaño de imagen...", self)
+        self.image_size_action.triggered.connect(self._image_size_dialog)
+
+        self.image_crop_action = QAction("Recortar imagen...", self)
+        self.image_crop_action.triggered.connect(self._crop_image)
+
+        self.image_rotate_90_action = QAction("Girar 90°", self)
+        self.image_rotate_90_action.triggered.connect(
+            lambda: self._rotate_image(90)
+        )
+
+        self.image_rotate_180_action = QAction("Girar 180°", self)
+        self.image_rotate_180_action.triggered.connect(
+            lambda: self._rotate_image(180)
+        )
+
+        self.image_rotate_270_action = QAction("Girar 270°", self)
+        self.image_rotate_270_action.triggered.connect(
+            lambda: self._rotate_image(270)
+        )
+
+        self.image_flip_h_action = QAction("Voltear horizontal", self)
+        self.image_flip_h_action.triggered.connect(
+            lambda: self._flip_image(True)
+        )
+
+        self.image_flip_v_action = QAction("Voltear vertical", self)
+        self.image_flip_v_action.triggered.connect(
+            lambda: self._flip_image(False)
+        )
+
+        self.image_adjust_action = QAction("Brillo, contraste y saturación...", self)
+        self.image_adjust_action.triggered.connect(self._adjust_image)
+
+        self.image_grayscale_action = QAction("Escala de grises", self)
+        self.image_grayscale_action.triggered.connect(self._grayscale_image)
+
+        self.image_sepia_action = QAction("Efecto sepia", self)
+        self.image_sepia_action.triggered.connect(self._sepia_image)
+
+        self.image_replace_action = QAction("Reemplazar imagen...", self)
+        self.image_replace_action.triggered.connect(self._replace_image)
+
+        self.image_delete_action = QAction("Eliminar imagen", self)
+        self.image_delete_action.triggered.connect(self._delete_image)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -629,6 +679,26 @@ class MainWindow(QMainWindow):
         formula_menu.addAction(self.count_formula_action)
         table_menu.addSeparator()
         table_menu.addAction(self.heading_repeat_action)
+
+        image_menu = self.menuBar().addMenu("&Imagen")
+        image_menu.addAction(self.insert_image_action)
+        image_menu.addSeparator()
+        image_menu.addAction(self.image_size_action)
+        image_menu.addAction(self.image_crop_action)
+        rotate_menu = image_menu.addMenu("&Girar")
+        rotate_menu.addAction(self.image_rotate_90_action)
+        rotate_menu.addAction(self.image_rotate_180_action)
+        rotate_menu.addAction(self.image_rotate_270_action)
+        flip_menu = image_menu.addMenu("&Voltear")
+        flip_menu.addAction(self.image_flip_h_action)
+        flip_menu.addAction(self.image_flip_v_action)
+        image_menu.addSeparator()
+        image_menu.addAction(self.image_adjust_action)
+        image_menu.addAction(self.image_grayscale_action)
+        image_menu.addAction(self.image_sepia_action)
+        image_menu.addSeparator()
+        image_menu.addAction(self.image_replace_action)
+        image_menu.addAction(self.image_delete_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -1148,6 +1218,85 @@ class MainWindow(QMainWindow):
         from rword.core.tables import set_table_style
 
         set_table_style(self._editor, style_name)
+
+    def _insert_image(self) -> None:
+        from rword.core.images import insert_image
+
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,
+            "Insertar imagen",
+            "",
+            "Imágenes (*.png *.jpg *.jpeg *.bmp *.gif *.svg);;Todos los archivos (*)",
+        )
+        if file_name and not insert_image(self._editor, file_name):
+            self._show_error("No se pudo cargar la imagen.")
+
+    def _image_size_dialog(self) -> None:
+        from rword.core.images import current_image_size, set_image_size
+
+        size = current_image_size(self._editor)
+        if size is None:
+            self._show_error("Coloque el cursor sobre una imagen.")
+            return
+        dialog = ImageSizeDialog(*size, self)
+        if dialog.exec():
+            set_image_size(self._editor, dialog.width(), dialog.height())
+
+    def _crop_image(self) -> None:
+        from rword.core.images import crop_image, current_image_size
+
+        size = current_image_size(self._editor)
+        if size is None:
+            self._show_error("Coloque el cursor sobre una imagen.")
+            return
+        dialog = CropDialog(*size, self)
+        if dialog.exec():
+            crop_image(self._editor, dialog.rect())
+
+    def _rotate_image(self, degrees: int) -> None:
+        from rword.core.images import rotate_image
+
+        rotate_image(self._editor, degrees)
+
+    def _flip_image(self, horizontal: bool) -> None:
+        from rword.core.images import flip_image
+
+        flip_image(self._editor, horizontal)
+
+    def _adjust_image(self) -> None:
+        from rword.core.images import adjust_pixels
+
+        dialog = AdjustDialog(self)
+        if dialog.exec():
+            brightness, contrast, saturation = dialog.values()
+            adjust_pixels(self._editor, brightness, contrast, saturation)
+
+    def _grayscale_image(self) -> None:
+        from rword.core.images import adjust_pixels
+
+        adjust_pixels(self._editor, grayscale=True)
+
+    def _sepia_image(self) -> None:
+        from rword.core.images import adjust_pixels
+
+        adjust_pixels(self._editor, sepia=True)
+
+    def _replace_image(self) -> None:
+        from rword.core.images import replace_image
+
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,
+            "Reemplazar imagen",
+            "",
+            "Imágenes (*.png *.jpg *.jpeg *.bmp *.gif);;Todos los archivos (*)",
+        )
+        if file_name and not replace_image(self._editor, file_name):
+            self._show_error("No se pudo reemplazar la imagen.")
+
+    def _delete_image(self) -> None:
+        from rword.core.images import delete_image
+
+        delete_image(self._editor)
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu
