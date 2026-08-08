@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QPainter,
     QPaintEvent,
     QPen,
+    QTextCursor,
 )
 from PySide6.QtWidgets import QTextEdit
 
@@ -50,6 +51,87 @@ class Editor(QTextEdit):
         self._view_mode = "print"
         self._zoom_percent = 100
         self._macro_recorder = None
+        self._completer = None
+        self._completer_words: set[str] = set()
+
+    def set_completion_words(self, words: list[str]) -> None:
+        from PySide6.QtWidgets import QCompleter
+
+        self._completer_words = set(words)
+        completer = QCompleter(sorted(words), self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setWidget(self)
+        completer.activated.connect(self._insert_completion)
+        self._completer = completer
+        self.setCompleter(completer)
+
+    def completion_words(self) -> list[str]:
+        return sorted(self._completer_words)
+
+    def setCompleter(self, completer) -> None:
+        if completer is None:
+            self._completer = None
+            return
+        self._completer = completer
+        completer.setWidget(self)
+        completer.setCompletionMode(completer.CompletionMode.PopupCompletion)
+        completer.activated.connect(self._insert_completion)
+
+    def completer(self):
+        return self._completer
+
+    def _insert_completion(self, completion: str) -> None:
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+        cursor.insertText(completion)
+        self.setTextCursor(cursor)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self._macro_recorder is not None:
+            self._macro_recorder.key_pressed(event)
+        if self._completer is not None and self._completer.popup().isVisible():
+            key = event.key()
+            if key in (
+                Qt.Key.Key_Enter, Qt.Key.Key_Return, Qt.Key.Key_Escape,
+                Qt.Key.Key_Tab, Qt.Key.Key_Backtab,
+            ):
+                event.ignore()
+                return
+        if self._track_changes:
+            key = event.key()
+            if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+                self._mark_deletion(key)
+                return
+            if len(event.text()) > 0:
+                self._insert_tracked_text(event.text())
+                return
+        super().keyPressEvent(event)
+        self._trigger_completer(event)
+
+    def _trigger_completer(self, event: QKeyEvent) -> None:
+        if self._completer is None:
+            return
+        if event.key() == Qt.Key.Key_Backspace and self.textCursor().positionInBlock() == 0:
+            self._completer.popup().hide()
+            return
+        if event.text() == "" or event.key() == Qt.Key.Key_Backspace:
+            return
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+        prefix = cursor.selectedText()
+        if len(prefix) < 2:
+            self._completer.popup().hide()
+            return
+        self._completer.setCompletionPrefix(prefix)
+        if self._completer.completionCount() == 0:
+            self._completer.popup().hide()
+            return
+        rect = self.cursorRect()
+        rect.setWidth(
+            self._completer.popup().sizeHintForColumn(0)
+            + self._completer.popup().verticalScrollBar().sizeHint().width()
+        )
+        self._completer.complete(rect)
 
     def set_macro_recorder(self, recorder) -> None:
         self._macro_recorder = recorder
@@ -178,21 +260,6 @@ class Editor(QTextEdit):
             insert_image_from_data(self, cropped)
         self._draw_image = None
         self._draw_last = None
-
-    def keyPressEvent(self, event: QKeyEvent) -> None:
-        if self._macro_recorder is not None:
-            self._macro_recorder.key_pressed(event)
-        if not self._track_changes:
-            super().keyPressEvent(event)
-            return
-        key = event.key()
-        if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
-            self._mark_deletion(key)
-            return
-        if len(event.text()) > 0:
-            self._insert_tracked_text(event.text())
-            return
-        super().keyPressEvent(event)
 
     def _mark_deletion(self, key: int) -> None:
         from rword.core.comments import deleted_format

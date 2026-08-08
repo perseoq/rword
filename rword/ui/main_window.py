@@ -35,6 +35,7 @@ from rword.config import (
     WINDOW_STATE_KEY,
 )
 from rword.core import formatting, paragraph
+from rword.core.assist import AGENTS
 from rword.core.export import (
     export_epub,
     export_html,
@@ -1230,6 +1231,37 @@ class MainWindow(QMainWindow):
                 submenu_actions[label] = action
             self._ai_automation[menu_name] = submenu_actions
 
+        self.write_like_action = QAction("Escribir como yo...", self)
+        self.write_like_action.triggered.connect(self._ai_write_like)
+
+        self.set_style_memory_action = QAction("Aprender mi estilo", self)
+        self.set_style_memory_action.triggered.connect(self._learn_style)
+
+        self.project_memory_action = QAction("Usar memoria del proyecto...", self)
+        self.project_memory_action.triggered.connect(self._ai_project_memory)
+
+        self.template_action = QAction("Plantillas inteligentes...", self)
+        self.template_action.triggered.connect(self._show_smart_templates)
+
+        self.autocomplete_action = QAction("Activar autocompletado", self)
+        self.autocomplete_action.setCheckable(True)
+        self.autocomplete_action.setChecked(False)
+        self.autocomplete_action.triggered.connect(self._toggle_autocomplete)
+
+        self.coherence_action = QAction("Inspector de coherencia", self)
+        self.coherence_action.triggered.connect(self._coherence_check)
+
+        self.glossary_action = QAction("Generar glosario", self)
+        self.glossary_action.triggered.connect(self._generate_glossary)
+
+        self.agents_actions = {}
+        for label, role in AGENTS.items():
+            action = QAction(label, self)
+            action.triggered.connect(
+                lambda checked=False, r=role, lbl=label: self._ai_agent(r, lbl)
+            )
+            self.agents_actions[label] = action
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1645,6 +1677,18 @@ class MainWindow(QMainWindow):
             automation_menu = ai_menu.addMenu(menu_name)
             for action in submenu_actions.values():
                 automation_menu.addAction(action)
+        ai_menu.addSeparator()
+        premium_menu = ai_menu.addMenu("&Premium")
+        premium_menu.addAction(self.write_like_action)
+        premium_menu.addAction(self.set_style_memory_action)
+        premium_menu.addAction(self.project_memory_action)
+        premium_menu.addAction(self.template_action)
+        premium_menu.addAction(self.autocomplete_action)
+        premium_menu.addAction(self.coherence_action)
+        premium_menu.addAction(self.glossary_action)
+        agents_menu = premium_menu.addMenu("&Agentes especializados")
+        for action in self.agents_actions.values():
+            agents_menu.addAction(action)
         self.ai_menu = ai_menu
 
         view_menu = self.menuBar().addMenu("&Ver")
@@ -3532,6 +3576,117 @@ class MainWindow(QMainWindow):
                 self._ai_run_and_apply(
                     lambda v=value, n=count: fn(client, v, n)
                 )
+
+    def _ai_write_like(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.ai import capabilities
+
+        sample = self._settings.value("ai/style_sample", "")
+        if not sample:
+            self._show_error(
+                "Primero aprenda su estilo con «Aprender mi estilo»."
+            )
+            return
+        instruction, ok = QInputDialog.getText(
+            self, "Escribir como yo", "¿Qué quiere que escriba?"
+        )
+        if not ok or not instruction.strip():
+            return
+        client = self._ai_client()
+        self._ai_run_and_apply(
+            lambda: capabilities.write_like(client, sample, instruction.strip())
+        )
+
+    def _learn_style(self) -> None:
+        from rword.core.assist import style_sample_from_selection
+
+        sample = style_sample_from_selection(self._editor)
+        if not sample.strip():
+            self._show_error("Seleccione texto para aprender su estilo.")
+            return
+        self._settings.setValue("ai/style_sample", sample[:4000])
+        self.statusBar().showMessage("Estilo aprendido correctamente.", 4000)
+
+    def _ai_project_memory(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.ai import capabilities
+        from rword.core.macros import document_variables
+
+        memory = "\n".join(
+            f"{key}: {value}" for key, value in document_variables(self._editor).items()
+        )
+        if not memory:
+            self._show_error("No hay variables de proyecto definidas.")
+            return
+        instruction, ok = QInputDialog.getText(
+            self, "Memoria del proyecto", "Instrucción:"
+        )
+        if not ok or not instruction.strip():
+            return
+        client = self._ai_client()
+        self._ai_run_and_apply(
+            lambda: capabilities.project_memory(client, memory, instruction.strip())
+        )
+
+    def _show_smart_templates(self) -> None:
+        from rword.ui.dialogs.smart_template import SmartTemplateDialog
+
+        dialog = SmartTemplateDialog(self._editor, self)
+        dialog.exec()
+
+    def _toggle_autocomplete(self, checked: bool) -> None:
+        if checked:
+            from rword.core.assist import completer_words
+
+            words = completer_words(self._editor)
+            self._editor.set_completion_words(words)
+        else:
+            self._editor.setCompleter(None)
+
+    def _coherence_check(self) -> None:
+        from rword.core.ai import capabilities
+        from rword.core.ai.session import document_context
+        from rword.core.assist import consistency_findings
+
+        local = consistency_findings(self._editor)
+        lines = [f"• {category}: {detail}" for category, detail in local]
+        if self._ai_client().configured:
+            context = document_context(self._editor)
+            client = self._ai_client()
+            self._ai_run_and_apply(
+                lambda: capabilities.coherence_check(client, context),
+                "insert",
+            )
+        elif lines:
+            QMessageBox.information(
+                self, "Inspector de coherencia", "\n".join(lines)
+            )
+        else:
+            QMessageBox.information(
+                self, "Inspector de coherencia", "Sin incoherencias detectadas."
+            )
+
+    def _generate_glossary(self) -> None:
+        from rword.core.assist import generate_glossary
+
+        generate_glossary(self._editor)
+
+    def _ai_agent(self, role: str, label: str) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.ai import capabilities
+
+        instruction, ok = QInputDialog.getText(
+            self, f"Agente: {label}", "Su consulta:"
+        )
+        if not ok or not instruction.strip():
+            return
+        client = self._ai_client()
+        self._ai_run_and_apply(
+            lambda: capabilities.agent_reply(client, role, instruction.strip())
+        )
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:

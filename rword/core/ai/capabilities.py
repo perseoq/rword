@@ -493,3 +493,42 @@ def meta_description(client, text: str) -> str:
         "Genera una metadescripción de SEO de menos de 160 caracteres para el texto:",
         text,
     )
+
+
+# --- Funciones premium -----------------------------------------------------
+
+def write_like(client, sample: str, instruction: str) -> str:
+    return _chat(
+        client,
+        f"Escribe un nuevo texto imitando el estilo del siguiente ejemplo. "
+        f"Instrucción: {instruction}\n\nEjemplo de estilo:\n{sample}",
+        temperature=0.8,
+    )
+
+
+def agent_reply(client, role: str, instruction: str) -> str:
+    return _chat(
+        client,
+        f"Actúa como un experto {role}. Responde con rigor y claridad a: "
+        f"{instruction}",
+        temperature=0.7,
+    )
+
+
+def coherence_check(client, text: str) -> str:
+    return _chat(
+        client,
+        "Revisa si algún nombre, fecha, cantidad o término cambia de forma "
+        "inconsistente a lo largo del texto. Devuelve una lista de incoherencias.",
+        text,
+        temperature=0.2,
+    )
+
+
+def project_memory(client, memory: str, instruction: str) -> str:
+    return _chat(
+        client,
+        f"Usa la siguiente memoria del proyecto como contexto. "
+        f"Memoria:\n{memory}\n\nInstrucción: {instruction}",
+        temperature=0.5,
+    )
