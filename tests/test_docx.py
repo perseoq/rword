@@ -113,3 +113,32 @@ def test_docx_roundtrip_preserves_full_formatting(editor, tmp_path):
     html = editor.toHtml()
     assert "ff0000" in html or "#ff0000" in html
     assert "<b" in html or "font-weight" in html
+
+
+def test_external_docx_preserves_formatting(editor, tmp_path):
+    """Un .docx creado por otro editor conserva el formato al abrirlo."""
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt, RGBColor
+
+    path = tmp_path / "externo.docx"
+    doc = Document()
+    para = doc.add_paragraph()
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run1 = para.add_run("Negrita ")
+    run1.bold = True
+    run2 = para.add_run("Rojo ")
+    run2.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)
+    run3 = para.add_run("Grande")
+    run3.font.size = Pt(20)
+    doc.save(str(path))
+
+    from rword.core.docx_io import _read_embedded_html, load_docx
+
+    assert _read_embedded_html(path) is None
+    load_docx(editor, path)
+    html = editor.toHtml()
+    assert "<b" in html or "font-weight" in html
+    assert "#ff0000" in html
+    assert "center" in html
+    assert "20pt" in html

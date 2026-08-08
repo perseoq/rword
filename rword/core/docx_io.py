@@ -33,7 +33,10 @@ def _run_html(run) -> str:
         text = f"<sub>{text}</sub>"
     styles = []
     if run.font.color and run.font.color.rgb is not None:
-        styles.append(f"color:{run.font.color.rgb}")
+        value = str(run.font.color.rgb)
+        if not value.startswith("#"):
+            value = "#" + value
+        styles.append(f"color:{value.lower()}")
     if run.font.size is not None:
         styles.append(f"font-size:{run.font.size.pt}pt")
     if run.font.name:
@@ -89,6 +92,15 @@ def _paragraph_html(paragraph) -> str:
         except ValueError:
             level = 1
         return f"<h{level}>{content}</h{level}>"
+    alignment = paragraph.alignment
+    align_map = {0: "left", 1: "center", 2: "right", 3: "justify"}
+    align = None
+    try:
+        align = align_map.get(int(alignment))
+    except (TypeError, ValueError):
+        align = None
+    if align:
+        return f"<p style='text-align:{align}'>{content}</p>"
     return f"<p>{content}</p>"
 
 
