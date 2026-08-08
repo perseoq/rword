@@ -43,12 +43,19 @@ from rword.ui.dialogs.go_to import GoToDialog
 from rword.ui.dialogs.header_footer import HeaderFooterDialog
 from rword.ui.dialogs.image import AdjustDialog, CropDialog, ImageSizeDialog
 from rword.ui.dialogs.insert_table import InsertTableDialog
+from rword.ui.dialogs.objects import (
+    ChartDialog,
+    EquationDialog,
+    SmartArtDialog,
+    SymbolDialog,
+)
 from rword.ui.dialogs.page_setup import PageSetupDialog
 from rword.ui.dialogs.paragraph import ParagraphDialog
 from rword.ui.dialogs.shape import ShapeDialog, WordArtDialog
 from rword.ui.dialogs.style import StyleDialog
 from rword.ui.dialogs.style_organizer import StyleOrganizerDialog
 from rword.ui.dialogs.thesaurus import ThesaurusDialog
+from rword.ui.drawing_bar import DrawingBar
 from rword.ui.editor import Editor
 from rword.ui.format_bar import FormatBar
 from rword.ui.navigation_panel import NavigationPanel
@@ -679,6 +686,30 @@ class MainWindow(QMainWindow):
         self.translate_action = QAction("Traducir selección...", self)
         self.translate_action.triggered.connect(self._translate_selection)
 
+        self.symbol_action = QAction("Símbolo...", self)
+        self.symbol_action.triggered.connect(self._show_symbol_dialog)
+
+        self.equation_action = QAction("Ecuación...", self)
+        self.equation_action.triggered.connect(self._show_equation_dialog)
+
+        self.chart_action = QAction("Gráfico...", self)
+        self.chart_action.triggered.connect(self._show_chart_dialog)
+
+        self.smartart_action = QAction("SmartArt...", self)
+        self.smartart_action.triggered.connect(self._show_smartart_dialog)
+
+        self.date_insert_action = QAction("Insertar fecha", self)
+        self.date_insert_action.triggered.connect(self._insert_date)
+
+        self.time_insert_action = QAction("Insertar hora", self)
+        self.time_insert_action.triggered.connect(self._insert_time)
+
+        self.file_insert_action = QAction("Insertar archivo...", self)
+        self.file_insert_action.triggered.connect(self._insert_file)
+
+        self.attachment_action = QAction("Adjuntar archivo (PDF/video/audio)...", self)
+        self.attachment_action.triggered.connect(self._insert_attachment)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -693,6 +724,11 @@ class MainWindow(QMainWindow):
         self.toggle_paragraphbar_action.setCheckable(True)
         self.toggle_paragraphbar_action.setChecked(True)
         self.toggle_paragraphbar_action.triggered.connect(self._toggle_paragraphbar)
+
+        self.toggle_drawingbar_action = QAction("Barra de dibujo", self)
+        self.toggle_drawingbar_action.setCheckable(True)
+        self.toggle_drawingbar_action.setChecked(False)
+        self.toggle_drawingbar_action.triggered.connect(self._toggle_drawingbar)
 
         self.toggle_statusbar_action = QAction("Barra de estado", self)
         self.toggle_statusbar_action.setCheckable(True)
@@ -883,6 +919,16 @@ class MainWindow(QMainWindow):
         insert_menu.addAction(self.text_box_action)
         insert_menu.addAction(self.wordart_action)
         insert_menu.addSeparator()
+        insert_menu.addAction(self.symbol_action)
+        insert_menu.addAction(self.equation_action)
+        insert_menu.addAction(self.chart_action)
+        insert_menu.addAction(self.smartart_action)
+        insert_menu.addSeparator()
+        insert_menu.addAction(self.date_insert_action)
+        insert_menu.addAction(self.time_insert_action)
+        insert_menu.addAction(self.file_insert_action)
+        insert_menu.addAction(self.attachment_action)
+        insert_menu.addSeparator()
         insert_menu.addAction(self.insert_hyperlink_action)
         bookmark_menu = insert_menu.addMenu("&Marcador")
         bookmark_menu.addAction(self.add_bookmark_action)
@@ -979,6 +1025,10 @@ class MainWindow(QMainWindow):
 
         self.paragraph_bar = ParagraphBar(self._editor, self)
         self.addToolBar(self.paragraph_bar)
+
+        self.drawing_bar = DrawingBar(self._editor, self)
+        self.addToolBar(self.drawing_bar)
+        self.drawing_bar.hide()
 
     def _build_statusbar(self) -> None:
         self.words_label = QLabel(self)
@@ -1179,6 +1229,73 @@ class MainWindow(QMainWindow):
 
     def _toggle_paragraphbar(self, checked: bool) -> None:
         self.paragraph_bar.setVisible(checked)
+
+    def _toggle_drawingbar(self, checked: bool) -> None:
+        self.drawing_bar.setVisible(checked)
+        if not checked:
+            self._editor.set_drawing(False)
+            self.drawing_bar.enable_action.setChecked(False)
+
+    def _show_symbol_dialog(self) -> None:
+        dialog = SymbolDialog(self._editor, self)
+        dialog.exec()
+
+    def _show_equation_dialog(self) -> None:
+        dialog = EquationDialog(self._editor, self)
+        dialog.exec()
+
+    def _show_chart_dialog(self) -> None:
+        dialog = ChartDialog(self)
+        if dialog.exec():
+            from rword.core.inserts import insert_chart
+
+            values = dialog.values()
+            if not values:
+                self._show_error("Introduzca al menos un valor.")
+                return
+            if not insert_chart(self._editor, values, dialog.labels()):
+                self._show_error("No se pudo insertar el gráfico.")
+
+    def _show_smartart_dialog(self) -> None:
+        dialog = SmartArtDialog(self)
+        if dialog.exec():
+            from rword.core.inserts import insert_smartart
+
+            items = dialog.items()
+            if not items:
+                self._show_error("Introduzca al menos un elemento.")
+                return
+            if not insert_smartart(self._editor, items):
+                self._show_error("No se pudo insertar el diagrama.")
+
+    def _insert_date(self) -> None:
+        from rword.core.inserts import insert_date
+
+        insert_date(self._editor)
+
+    def _insert_time(self) -> None:
+        from rword.core.inserts import insert_time
+
+        insert_time(self._editor)
+
+    def _insert_file(self) -> None:
+        from rword.core.inserts import insert_file_contents
+
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Insertar archivo", "", "Documentos de texto (*.txt *.md *.rst)"
+        )
+        if file_name and not insert_file_contents(self._editor, file_name):
+            self._show_error("No se pudo insertar el archivo.")
+
+    def _insert_attachment(self) -> None:
+        from rword.core.inserts import insert_attachment
+
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Adjuntar archivo", "",
+            "Archivos (*.pdf *.mp4 *.mp3 *.wav *.zip *.pdf)"
+        )
+        if file_name:
+            insert_attachment(self._editor, file_name)
 
     def _show_paragraph_dialog(self) -> None:
         if self._paragraph_dialog is None:
