@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFontDialog,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QSplitter,
@@ -847,6 +848,37 @@ class MainWindow(QMainWindow):
         self.reset_form_action = QAction("Restablecer formulario", self)
         self.reset_form_action.triggered.connect(self._reset_form)
 
+        self.read_only_action = QAction("Solo lectura", self)
+        self.read_only_action.setCheckable(True)
+        self.read_only_action.triggered.connect(self._toggle_read_only)
+
+        self.password_modify_action = QAction("Contraseña para modificar...", self)
+        self.password_modify_action.triggered.connect(self._set_modify_password)
+
+        self.remove_password_action = QAction("Quitar contraseña", self)
+        self.remove_password_action.triggered.connect(self._remove_password)
+
+        self.unlock_action = QAction("Desbloquear edición...", self)
+        self.unlock_action.triggered.connect(self._unlock_edition)
+
+        self.save_protected_action = QAction("Guardar con contraseña...", self)
+        self.save_protected_action.triggered.connect(self._save_protected)
+
+        self.final_action = QAction("Marcar como final", self)
+        self.final_action.triggered.connect(self._mark_final)
+
+        self.sign_action = QAction("Firmar documento...", self)
+        self.sign_action.triggered.connect(self._sign_document)
+
+        self.verify_sign_action = QAction("Verificar firma", self)
+        self.verify_sign_action.triggered.connect(self._verify_signature)
+
+        self.inspect_action = QAction("Inspeccionar documento...", self)
+        self.inspect_action.triggered.connect(self._inspect_document)
+
+        self.remove_personal_action = QAction("Eliminar información personal", self)
+        self.remove_personal_action.triggered.connect(self._remove_personal_info)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1148,6 +1180,21 @@ class MainWindow(QMainWindow):
         forms_menu.addAction(self.protect_form_action)
         forms_menu.addAction(self.reset_form_action)
 
+        security_menu = self.menuBar().addMenu("&Seguridad")
+        security_menu.addAction(self.read_only_action)
+        security_menu.addAction(self.password_modify_action)
+        security_menu.addAction(self.remove_password_action)
+        security_menu.addAction(self.unlock_action)
+        security_menu.addAction(self.save_protected_action)
+        security_menu.addSeparator()
+        security_menu.addAction(self.final_action)
+        security_menu.addSeparator()
+        security_menu.addAction(self.sign_action)
+        security_menu.addAction(self.verify_sign_action)
+        security_menu.addSeparator()
+        security_menu.addAction(self.inspect_action)
+        security_menu.addAction(self.remove_personal_action)
+
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
         modes_menu.addAction(self.read_mode_action)
@@ -1325,6 +1372,8 @@ class MainWindow(QMainWindow):
         if not file_name:
             return
         path = Path(file_name)
+        if self._try_open_protected(path):
+            return
         try:
             self._editor.load_file(path)
         except (OSError, UnicodeDecodeError) as error:
@@ -1332,6 +1381,34 @@ class MainWindow(QMainWindow):
             return
         self._update_title()
         self._update_statusbar()
+
+    def _try_open_protected(self, path: Path) -> bool:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.security import decrypt_document, is_protected_content
+
+        try:
+            data = path.read_bytes()
+        except OSError:
+            return False
+        if not is_protected_content(data):
+            return False
+        password, ok = QInputDialog.getText(
+            self, "Documento protegido", "Contraseña:",
+            echo=QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return True
+        content = decrypt_document(data, password)
+        if content is None:
+            self._show_error("No se pudo desbloquear el documento.")
+            return True
+        self._editor.setHtml(content)
+        self._editor.set_file_path(path)
+        self._editor.document().setModified(False)
+        self._update_title()
+        self._update_statusbar()
+        return True
 
     def _save_document(self) -> None:
         if self._editor.file_path is None:
@@ -2128,6 +2205,122 @@ class MainWindow(QMainWindow):
         from rword.core.forms import reset_form
 
         reset_form(self._editor)
+
+    def _toggle_read_only(self, checked: bool) -> None:
+        from rword.core.security import set_read_only
+
+        set_read_only(self._editor, checked)
+
+    def _set_modify_password(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.security import set_modify_password
+
+        password, ok = QInputDialog.getText(
+            self, "Contraseña para modificar", "Nueva contraseña:",
+            echo=QLineEdit.EchoMode.Password,
+        )
+        if ok and password:
+            set_modify_password(self._editor, password)
+            from rword.core.security import set_read_only
+
+            set_read_only(self._editor, True)
+
+    def _remove_password(self) -> None:
+        from rword.core.security import remove_modify_password, set_read_only
+
+        remove_modify_password(self._editor)
+        set_read_only(self._editor, False)
+
+    def _unlock_edition(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.security import (
+            has_modify_password,
+            set_read_only,
+            unlock_modify,
+        )
+
+        if not has_modify_password(self._editor):
+            set_read_only(self._editor, False)
+            return
+        password, ok = QInputDialog.getText(
+            self, "Desbloquear edición", "Contraseña:",
+            echo=QLineEdit.EchoMode.Password,
+        )
+        if ok and unlock_modify(self._editor, password):
+            set_read_only(self._editor, False)
+
+    def _save_protected(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.security import encrypt_document
+
+        password, ok = QInputDialog.getText(
+            self, "Guardar con contraseña", "Contraseña:",
+            echo=QLineEdit.EchoMode.Password,
+        )
+        if not ok or not password:
+            return
+        default = Path(self._suggested_name()).stem or "documento"
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Guardar con contraseña", f"{default}.rword",
+            "Documento protegido (*.rword)",
+        )
+        if not file_name:
+            return
+        content = self._editor.toHtml()
+        data = encrypt_document(content, password)
+        Path(file_name).write_bytes(data)
+
+    def _mark_final(self) -> None:
+        from rword.core.security import mark_as_final
+
+        mark_as_final(self._editor)
+
+    def _sign_document(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.security import sign_document
+
+        signer, ok = QInputDialog.getText(self, "Firmar documento", "Firmante:")
+        if ok and signer:
+            signature = sign_document(self._editor, signer)
+            self.statusBar().showMessage(f"Firma: {signature[:12]}…", 6000)
+
+    def _verify_signature(self) -> None:
+        from rword.core.security import signer_of, verify_signature
+
+        if verify_signature(self._editor):
+            QMessageBox.information(
+                self, "Firma", f"Firma válida de: {signer_of(self._editor)}"
+            )
+        else:
+            QMessageBox.warning(
+                self, "Firma", "La firma no es válida o el documento fue modificado."
+            )
+
+    def _inspect_document(self) -> None:
+        from rword.core.security import inspect_personal_info
+
+        findings = inspect_personal_info(self._editor)
+        if not findings:
+            QMessageBox.information(
+                self, "Inspección", "No se encontró información personal."
+            )
+            return
+        lines = [f"{kind}: {value}" for kind, value in findings]
+        QMessageBox.information(
+            self, "Inspección", "Información encontrada:\n" + "\n".join(lines)
+        )
+
+    def _remove_personal_info(self) -> None:
+        from rword.core.security import remove_personal_info
+
+        count = remove_personal_info(self._editor)
+        self.statusBar().showMessage(
+            f"Se eliminaron {count} elementos de información personal.", 5000
+        )
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
