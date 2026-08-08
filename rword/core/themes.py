@@ -48,6 +48,12 @@ def default_themes() -> list[Theme]:
             text_color="#3b2f1e",
             selection_color="#d8c9a3",
         ),
+        Theme(
+            "Alto contraste",
+            page_color="#000000",
+            text_color="#ffffff",
+            selection_color="#003366",
+        ),
     ]
 
 

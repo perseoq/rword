@@ -940,6 +940,25 @@ class MainWindow(QMainWindow):
         self.presence_action.setChecked(True)
         self.presence_action.triggered.connect(self._toggle_presence)
 
+        self.check_accessibility_action = QAction("Comprobar accesibilidad...", self)
+        self.check_accessibility_action.triggered.connect(self._check_accessibility)
+
+        self.alt_text_action = QAction("Texto alternativo de imagen...", self)
+        self.alt_text_action.triggered.connect(self._set_alt_text)
+
+        self.read_aloud_action = QAction("Leer en voz alta", self)
+        self.read_aloud_action.triggered.connect(self._read_aloud)
+
+        self.stop_reading_action = QAction("Detener lectura", self)
+        self.stop_reading_action.triggered.connect(self._stop_reading)
+
+        self.high_contrast_action = QAction("Tema de alto contraste", self)
+        self.high_contrast_action.triggered.connect(self._apply_high_contrast)
+
+        self.immersive_action = QAction("Enfoque inmersivo", self)
+        self.immersive_action.setCheckable(True)
+        self.immersive_action.triggered.connect(self._toggle_immersive)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1285,6 +1304,17 @@ class MainWindow(QMainWindow):
         collab_menu.addAction(self.set_username_action)
         collab_menu.addAction(self.presence_action)
         collab_menu.addAction(self.track_authors_action)
+
+        accessibility_menu = self.menuBar().addMenu("&Accesibilidad")
+        accessibility_menu.addAction(self.check_accessibility_action)
+        accessibility_menu.addAction(self.alt_text_action)
+        accessibility_menu.addSeparator()
+        accessibility_menu.addAction(self.read_aloud_action)
+        accessibility_menu.addAction(self.stop_reading_action)
+        accessibility_menu.addSeparator()
+        accessibility_menu.addAction(self.high_contrast_action)
+        accessibility_menu.addAction(self.immersive_action)
+        accessibility_menu.addAction(self.toggle_navigation_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
@@ -2823,6 +2853,72 @@ class MainWindow(QMainWindow):
     def _log_activity(self, event: str, detail: str = "") -> None:
         if hasattr(self, "_collab_manager"):
             self._collab_manager.log(event, detail)
+
+    def _check_accessibility(self) -> None:
+        from rword.core.accessibility import check_accessibility
+
+        issues = check_accessibility(self._editor)
+        if not issues:
+            QMessageBox.information(
+                self, "Accesibilidad", "El documento supera la comprobación."
+            )
+            return
+        lines = [f"• {category}: {problem}" for category, problem in issues]
+        QMessageBox.information(
+            self,
+            "Comprobador de accesibilidad",
+            f"Se encontraron {len(issues)} problemas:\n\n" + "\n".join(lines[:20]),
+        )
+
+    def _set_alt_text(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.accessibility import (
+            image_alt_text_at_cursor,
+            set_image_alt_text,
+        )
+
+        if not hasattr(self._editor, "file_path"):
+            return
+        current = image_alt_text_at_cursor(self._editor)
+        alt_text, ok = QInputDialog.getText(
+            self, "Texto alternativo", "Descripción de la imagen:", text=current
+        )
+        if ok and not set_image_alt_text(self._editor, alt_text):
+            self._show_error("Coloque el cursor sobre una imagen.")
+
+    def _read_aloud(self) -> None:
+        from rword.core.accessibility import SpeechReader
+
+        if not hasattr(self, "_speech"):
+            self._speech = SpeechReader(self)
+        cursor = self._editor.textCursor()
+        text = cursor.selectedText().replace("\u2029", "\n")
+        if not text:
+            text = self._editor.toPlainText()
+        self._speech.speak(text)
+
+    def _stop_reading(self) -> None:
+        if hasattr(self, "_speech"):
+            self._speech.stop()
+
+    def _apply_high_contrast(self) -> None:
+        self._apply_theme("Alto contraste")
+
+    def _toggle_immersive(self, checked: bool) -> None:
+        if checked:
+            self.menuBar().hide()
+            self.toolbar.hide()
+            self.format_bar.hide()
+            self.paragraph_bar.hide()
+            self.drawing_bar.hide()
+            self.statusBar().hide()
+        else:
+            self.menuBar().show()
+            self.toolbar.show()
+            self.format_bar.show()
+            self.paragraph_bar.show()
+            self.statusBar().show()
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
