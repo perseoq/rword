@@ -33,10 +33,12 @@ from rword.config import (
 from rword.core import formatting, paragraph
 from rword.core.pages import apply_page_setup, current_page_setup
 from rword.core.styles import FormatPainter, Style, StyleManager
+from rword.core.tables import TABLE_STYLES
 from rword.core.themes import ThemeManager, apply_theme
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
+from rword.ui.dialogs.insert_table import InsertTableDialog
 from rword.ui.dialogs.page_setup import PageSetupDialog
 from rword.ui.dialogs.paragraph import ParagraphDialog
 from rword.ui.dialogs.style import StyleDialog
@@ -363,6 +365,102 @@ class MainWindow(QMainWindow):
             self.columns_three_action,
         )
 
+        self.insert_table_action = QAction("Insertar tabla...", self)
+        self.insert_table_action.triggered.connect(self._insert_table)
+
+        self.convert_text_to_table_action = QAction("Convertir texto en tabla", self)
+        self.convert_text_to_table_action.triggered.connect(self._text_to_table)
+
+        self.table_to_text_action = QAction("Convertir tabla en texto", self)
+        self.table_to_text_action.triggered.connect(self._table_to_text)
+
+        self.add_row_above_action = QAction("Agregar fila arriba", self)
+        self.add_row_above_action.triggered.connect(self._add_row_above)
+
+        self.add_row_below_action = QAction("Agregar fila abajo", self)
+        self.add_row_below_action.triggered.connect(self._add_row_below)
+
+        self.add_column_left_action = QAction("Agregar columna a la izquierda", self)
+        self.add_column_left_action.triggered.connect(self._add_column_left)
+
+        self.add_column_right_action = QAction("Agregar columna a la derecha", self)
+        self.add_column_right_action.triggered.connect(self._add_column_right)
+
+        self.delete_row_action = QAction("Eliminar fila", self)
+        self.delete_row_action.triggered.connect(self._delete_row)
+
+        self.delete_column_action = QAction("Eliminar columna", self)
+        self.delete_column_action.triggered.connect(self._delete_column)
+
+        self.delete_table_action = QAction("Eliminar tabla", self)
+        self.delete_table_action.triggered.connect(self._delete_table)
+
+        self.merge_cells_action = QAction("Combinar celdas", self)
+        self.merge_cells_action.triggered.connect(self._merge_cells)
+
+        self.split_cell_action = QAction("Dividir celda...", self)
+        self.split_cell_action.triggered.connect(self._split_cell)
+
+        self.split_table_action = QAction("Dividir tabla", self)
+        self.split_table_action.triggered.connect(self._split_table)
+
+        self.select_row_action = QAction("Seleccionar fila", self)
+        self.select_row_action.triggered.connect(self._select_row)
+
+        self.select_column_action = QAction("Seleccionar columna", self)
+        self.select_column_action.triggered.connect(self._select_column)
+
+        self.select_table_action = QAction("Seleccionar tabla", self)
+        self.select_table_action.triggered.connect(self._select_table)
+
+        self.autofit_action = QAction("Ajuste automático", self)
+        self.autofit_action.triggered.connect(self._autofit)
+
+        self.distribute_rows_action = QAction("Distribuir filas", self)
+        self.distribute_rows_action.triggered.connect(self._distribute_rows)
+
+        self.distribute_columns_action = QAction("Distribuir columnas", self)
+        self.distribute_columns_action.triggered.connect(self._distribute_columns)
+
+        self.sort_asc_action = QAction("Ordenar ascendente", self)
+        self.sort_asc_action.triggered.connect(self._sort_table)
+
+        self.sort_desc_action = QAction("Ordenar descendente", self)
+        self.sort_desc_action.triggered.connect(self._sort_table_desc)
+
+        self.sum_formula_action = QAction("Suma de columna", self)
+        self.sum_formula_action.triggered.connect(
+            lambda: self._table_formula("SUM")
+        )
+
+        self.average_formula_action = QAction("Promedio de columna", self)
+        self.average_formula_action.triggered.connect(
+            lambda: self._table_formula("AVERAGE")
+        )
+
+        self.count_formula_action = QAction("Contar celdas", self)
+        self.count_formula_action.triggered.connect(
+            lambda: self._table_formula("COUNT")
+        )
+
+        self.heading_repeat_action = QAction("Encabezado repetido", self)
+        self.heading_repeat_action.setCheckable(True)
+        self.heading_repeat_action.triggered.connect(self._toggle_heading_repeat)
+
+        self.shade_cells_action = QAction("Sombreado de celdas...", self)
+        self.shade_cells_action.triggered.connect(self._shade_cells)
+
+        self.border_table_action = QAction("Bordes de tabla...", self)
+        self.border_table_action.triggered.connect(self._set_table_border)
+
+        self.table_styles_actions = {}
+        for style_name in TABLE_STYLES:
+            action = QAction(f"Estilo «{style_name}»", self)
+            action.triggered.connect(
+                lambda checked=False, s=style_name: self._set_table_style(s)
+            )
+            self.table_styles_actions[style_name] = action
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -488,6 +586,49 @@ class MainWindow(QMainWindow):
         styles_menu.addAction(self.organizer_action)
         styles_menu.addSeparator()
         styles_menu.addAction(self.painter_action)
+
+        table_menu = self.menuBar().addMenu("&Tabla")
+        table_menu.addAction(self.insert_table_action)
+        table_menu.addAction(self.convert_text_to_table_action)
+        table_menu.addAction(self.table_to_text_action)
+        table_menu.addSeparator()
+        rows_menu = table_menu.addMenu("&Filas")
+        rows_menu.addAction(self.add_row_above_action)
+        rows_menu.addAction(self.add_row_below_action)
+        rows_menu.addAction(self.delete_row_action)
+        cols_menu = table_menu.addMenu("&Columnas")
+        cols_menu.addAction(self.add_column_left_action)
+        cols_menu.addAction(self.add_column_right_action)
+        cols_menu.addAction(self.delete_column_action)
+        cells_menu = table_menu.addMenu("&Celdas")
+        cells_menu.addAction(self.merge_cells_action)
+        cells_menu.addAction(self.split_cell_action)
+        cells_menu.addAction(self.shade_cells_action)
+        table_menu.addSeparator()
+        table_menu.addAction(self.delete_table_action)
+        table_menu.addAction(self.split_table_action)
+        table_menu.addSeparator()
+        select_menu = table_menu.addMenu("&Seleccionar")
+        select_menu.addAction(self.select_row_action)
+        select_menu.addAction(self.select_column_action)
+        select_menu.addAction(self.select_table_action)
+        table_menu.addSeparator()
+        table_menu.addAction(self.autofit_action)
+        table_menu.addAction(self.distribute_rows_action)
+        table_menu.addAction(self.distribute_columns_action)
+        table_menu.addAction(self.border_table_action)
+        style_menu = table_menu.addMenu("&Estilos de tabla")
+        for action in self.table_styles_actions.values():
+            style_menu.addAction(action)
+        table_menu.addSeparator()
+        table_menu.addAction(self.sort_asc_action)
+        table_menu.addAction(self.sort_desc_action)
+        formula_menu = table_menu.addMenu("&Fórmula")
+        formula_menu.addAction(self.sum_formula_action)
+        formula_menu.addAction(self.average_formula_action)
+        formula_menu.addAction(self.count_formula_action)
+        table_menu.addSeparator()
+        table_menu.addAction(self.heading_repeat_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -855,6 +996,158 @@ class MainWindow(QMainWindow):
         )
         if ok:
             self._editor.set_watermark(text)
+
+    def _insert_table(self) -> None:
+        dialog = InsertTableDialog(self)
+        if dialog.exec():
+            from rword.core.tables import insert_table
+
+            insert_table(self._editor, dialog.rows(), dialog.columns(), dialog.style_name())
+
+    def _text_to_table(self) -> None:
+        from rword.core.tables import text_to_table
+
+        text_to_table(self._editor, "\t")
+
+    def _table_to_text(self) -> None:
+        from rword.core.tables import table_to_text
+
+        table_to_text(self._editor)
+
+    def _add_row_above(self) -> None:
+        from rword.core.tables import add_row_before
+
+        add_row_before(self._editor)
+
+    def _add_row_below(self) -> None:
+        from rword.core.tables import add_row_after
+
+        add_row_after(self._editor)
+
+    def _add_column_left(self) -> None:
+        from rword.core.tables import add_column_before
+
+        add_column_before(self._editor)
+
+    def _add_column_right(self) -> None:
+        from rword.core.tables import add_column_after
+
+        add_column_after(self._editor)
+
+    def _delete_row(self) -> None:
+        from rword.core.tables import delete_row
+
+        delete_row(self._editor)
+
+    def _delete_column(self) -> None:
+        from rword.core.tables import delete_column
+
+        delete_column(self._editor)
+
+    def _delete_table(self) -> None:
+        from rword.core.tables import delete_table
+
+        delete_table(self._editor)
+
+    def _merge_cells(self) -> None:
+        from rword.core.tables import merge_cells
+
+        merge_cells(self._editor)
+
+    def _split_cell(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        rows, ok = QInputDialog.getInt(self, "Dividir celda", "Número de filas:", 2, 1, 20)
+        if not ok:
+            return
+        columns, ok = QInputDialog.getInt(self, "Dividir celda", "Número de columnas:", 2, 1, 20)
+        if ok:
+            from rword.core.tables import split_cell
+
+            split_cell(self._editor, rows, columns)
+
+    def _split_table(self) -> None:
+        from rword.core.tables import split_table
+
+        split_table(self._editor)
+
+    def _select_row(self) -> None:
+        from rword.core.tables import select_row
+
+        select_row(self._editor)
+
+    def _select_column(self) -> None:
+        from rword.core.tables import select_column
+
+        select_column(self._editor)
+
+    def _select_table(self) -> None:
+        from rword.core.tables import select_table
+
+        select_table(self._editor)
+
+    def _autofit(self) -> None:
+        from rword.core.tables import autofit
+
+        autofit(self._editor)
+
+    def _distribute_rows(self) -> None:
+        from rword.core.tables import set_row_height_equal
+
+        set_row_height_equal(self._editor)
+
+    def _distribute_columns(self) -> None:
+        from rword.core.tables import set_column_width_equal
+
+        set_column_width_equal(self._editor)
+
+    def _sort_table(self) -> None:
+        from rword.core.tables import sort_current_column
+
+        sort_current_column(self._editor, ascending=True)
+
+    def _sort_table_desc(self) -> None:
+        from rword.core.tables import sort_current_column
+
+        sort_current_column(self._editor, ascending=False)
+
+    def _table_formula(self, function: str) -> None:
+        from rword.core.tables import table_formula
+
+        table_formula(self._editor, function)
+
+    def _toggle_heading_repeat(self, checked: bool) -> None:
+        from rword.core.tables import set_heading_row_repeat
+
+        set_heading_row_repeat(self._editor, checked)
+
+    def _shade_cells(self) -> None:
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QColorDialog
+
+        color = QColorDialog.getColor(QColor("#f2f2f2"), self, "Sombreado de celdas")
+        if color.isValid():
+            from rword.core.tables import set_cell_shading
+
+            set_cell_shading(self._editor, color)
+
+    def _set_table_border(self) -> None:
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QColorDialog, QInputDialog
+
+        color = QColorDialog.getColor(QColor("black"), self, "Color de borde")
+        if not color.isValid():
+            return
+        width, ok = QInputDialog.getDouble(self, "Bordes de tabla", "Grosor:", 1.0, 0.0, 20.0, 1)
+        if ok:
+            from rword.core.tables import set_table_border
+
+            set_table_border(self._editor, color, width)
+
+    def _set_table_style(self, style_name: str) -> None:
+        from rword.core.tables import set_table_style
+
+        set_table_style(self._editor, style_name)
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu
