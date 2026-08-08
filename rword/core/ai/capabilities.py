@@ -119,3 +119,81 @@ def detect_ambiguities(client, text: str) -> str:
         "Detecta ambigüedades y frases demasiado largas. Devuelve una lista breve.",
         text,
     )
+
+
+# --- Traducción ------------------------------------------------------------
+
+def translate(client, text: str, target_language: str) -> str:
+    return _chat(
+        client,
+        f"Traduce el siguiente texto a {target_language} manteniendo el significado. "
+        "Devuelve únicamente la traducción:",
+        text,
+        temperature=0.2,
+    )
+
+
+def detect_language(client, text: str) -> str:
+    return _chat(
+        client,
+        "Detecta el idioma del siguiente texto y responde con el nombre del idioma.",
+        text,
+        temperature=0.1,
+        max_tokens=64,
+    )
+
+
+# --- Análisis del documento ------------------------------------------------
+
+def main_ideas(client, text: str) -> str:
+    return _chat(client, "Extrae las ideas principales del siguiente texto:", text)
+
+
+def extract_conclusions(client, text: str) -> str:
+    return _chat(client, "Extrae las conclusiones del siguiente texto:", text)
+
+
+def detect_inconsistencies(client, text: str) -> str:
+    return _chat(
+        client,
+        "Detecta inconsistencias, contradicciones e información faltante. "
+        "Devuelve una lista breve.",
+        text,
+        temperature=0.2,
+    )
+
+
+def reading_difficulty(client, text: str) -> str:
+    return _chat(
+        client,
+        "Calcula la dificultad de lectura del texto y explica brevemente.",
+        text,
+        temperature=0.2,
+    )
+
+
+def target_audience(client, text: str) -> str:
+    return _chat(
+        client,
+        "Identifica el público objetivo del siguiente texto.",
+        text,
+        temperature=0.2,
+    )
+
+
+def classify_document(client, text: str) -> str:
+    return _chat(
+        client,
+        "Clasifica el tipo de documento (informe, contrato, carta, artículo...) "
+        "y justifica brevemente.",
+        text,
+        temperature=0.2,
+    )
+
+
+def executive_summary(client, text: str) -> str:
+    return _chat(
+        client,
+        "Genera un resumen ejecutivo del siguiente texto.",
+        text,
+    )

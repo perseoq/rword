@@ -1065,6 +1065,49 @@ class MainWindow(QMainWindow):
             )
             self.ai_tones[label] = action
 
+        self.ai_translate_action = QAction("Traducir...", self)
+        self.ai_translate_action.triggered.connect(self._ai_translate)
+
+        self.ai_detect_language_action = QAction("Detectar idioma", self)
+        self.ai_detect_language_action.triggered.connect(
+            lambda: self._ai_context("detect_language", "insert")
+        )
+
+        self.ai_ideas_action = QAction("Ideas principales", self)
+        self.ai_ideas_action.triggered.connect(
+            lambda: self._ai_context("main_ideas", "insert")
+        )
+
+        self.ai_conclusions_action = QAction("Conclusiones", self)
+        self.ai_conclusions_action.triggered.connect(
+            lambda: self._ai_context("extract_conclusions", "insert")
+        )
+
+        self.ai_inconsistencies_action = QAction("Inconsistencias y contradicciones", self)
+        self.ai_inconsistencies_action.triggered.connect(
+            lambda: self._ai_context("detect_inconsistencies", "insert")
+        )
+
+        self.ai_difficulty_action = QAction("Dificultad de lectura", self)
+        self.ai_difficulty_action.triggered.connect(
+            lambda: self._ai_context("reading_difficulty", "insert")
+        )
+
+        self.ai_audience_action = QAction("Público objetivo", self)
+        self.ai_audience_action.triggered.connect(
+            lambda: self._ai_context("target_audience", "insert")
+        )
+
+        self.ai_classify_action = QAction("Clasificar documento", self)
+        self.ai_classify_action.triggered.connect(
+            lambda: self._ai_context("classify_document", "insert")
+        )
+
+        self.ai_executive_action = QAction("Resumen ejecutivo", self)
+        self.ai_executive_action.triggered.connect(
+            lambda: self._ai_context("executive_summary", "insert")
+        )
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1452,6 +1495,17 @@ class MainWindow(QMainWindow):
         correction_menu.addAction(self.ai_fluidity_action)
         correction_menu.addAction(self.ai_clarity_action)
         correction_menu.addAction(self.ai_ambiguity_action)
+        translation_menu = ai_menu.addMenu("&Traducción")
+        translation_menu.addAction(self.ai_translate_action)
+        translation_menu.addAction(self.ai_detect_language_action)
+        analysis_menu = ai_menu.addMenu("&Análisis")
+        analysis_menu.addAction(self.ai_ideas_action)
+        analysis_menu.addAction(self.ai_conclusions_action)
+        analysis_menu.addAction(self.ai_inconsistencies_action)
+        analysis_menu.addAction(self.ai_difficulty_action)
+        analysis_menu.addAction(self.ai_audience_action)
+        analysis_menu.addAction(self.ai_classify_action)
+        analysis_menu.addAction(self.ai_executive_action)
         self.ai_menu = ai_menu
 
         view_menu = self.menuBar().addMenu("&Ver")
@@ -3259,6 +3313,37 @@ class MainWindow(QMainWindow):
         self._ai_run_and_apply(
             lambda: capabilities.rewrite(client, context, instruction.strip()),
             "replace_selection",
+        )
+
+    def _ai_translate(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.ai import capabilities
+        from rword.core.ai.session import document_context
+
+        target, ok = QInputDialog.getItem(
+            self,
+            "Traducir con IA",
+            "Idioma de destino:",
+            ["inglés", "español", "francés", "alemán", "portugués", "italiano"],
+            0,
+            False,
+        )
+        if not ok:
+            return
+        client = self._ai_client()
+        context = document_context(self._editor)
+        if not context.strip():
+            self._show_error("No hay texto para traducir.")
+            return
+        insert_mode = (
+            "replace_selection"
+            if self._editor.textCursor().hasSelection()
+            else "insert"
+        )
+        self._ai_run_and_apply(
+            lambda: capabilities.translate(client, context, target),
+            insert_mode,
         )
 
     def _refresh_navigation(self) -> None:
