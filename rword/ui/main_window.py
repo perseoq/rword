@@ -99,15 +99,17 @@ class MainWindow(QMainWindow):
         self._comments_panel: CommentsPanel | None = None
         self._ai_chat_panel = None
 
+        from rword.ui.page_view import PageView
         from rword.ui.ruler import Ruler
 
         self._ruler = Ruler(self._editor, self)
+        self._page_view = PageView(self._editor, self)
         self._central = QWidget(self)
         self._central_layout = QVBoxLayout(self._central)
         self._central_layout.setContentsMargins(0, 0, 0, 0)
         self._central_layout.setSpacing(0)
         self._central_layout.addWidget(self._ruler)
-        self._central_layout.addWidget(self._editor)
+        self._central_layout.addWidget(self._page_view)
         self.setCentralWidget(self._central)
         self._splitter: QSplitter | None = None
         self._build_actions()
@@ -118,6 +120,9 @@ class MainWindow(QMainWindow):
         self._connect_editor_signals()
         self._connect_clipboard()
         apply_theme(self._editor, self._theme_manager.current)
+        self._page_view.update_paper_color(
+            self._theme_manager.current.page_color
+        )
         self._plugin_manager.load_enabled(self)
         self._apply_saved_preferences()
         self._restore_settings()
@@ -2192,9 +2197,10 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             new_setup = dialog.setup()
             apply_page_setup(self._editor, new_setup)
-            palette = self._editor.palette()
-            palette.setColor(QPalette.ColorRole.Base, QColor(new_setup.page_color))
-            self._editor.setPalette(palette)
+            self._page_view.update_paper_color(new_setup.page_color)
+            self._page_view.set_page_width(
+                new_setup.page_size_px().width()
+            )
             self._editor.set_watermark(new_setup.watermark)
 
     def _insert_page_break(self) -> None:
@@ -2639,12 +2645,18 @@ class MainWindow(QMainWindow):
 
     def _split_window(self) -> None:
         if self._splitter is None:
+            from rword.ui.page_view import PageView
+
             self._splitter = QSplitter(Qt.Orientation.Vertical, self)
             self._splitter.setObjectName("splitter")
             self._splitter.addWidget(self._editor)
             self._second_editor = Editor(self._splitter)
             self._second_editor.setDocument(self._editor.document())
-            self._splitter.addWidget(self._second_editor)
+            second_page = PageView(self._second_editor, self._splitter)
+            second_page.update_paper_color(
+                self._theme_manager.current.page_color
+            )
+            self._splitter.addWidget(second_page)
             self.setCentralWidget(self._splitter)
         else:
             self._splitter.setVisible(not self._splitter.isVisible())
@@ -4009,6 +4021,7 @@ class MainWindow(QMainWindow):
         theme = self._theme_manager.get(name)
         self._theme_manager.set_current(name)
         apply_theme(self._editor, theme)
+        self._page_view.update_paper_color(theme.page_color)
 
     def _connect_editor_signals(self) -> None:
         self._editor.document().modificationChanged.connect(
