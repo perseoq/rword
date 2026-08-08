@@ -77,7 +77,6 @@ from rword.ui.dialogs.shape import ShapeDialog, WordArtDialog
 from rword.ui.dialogs.style import StyleDialog
 from rword.ui.dialogs.style_organizer import StyleOrganizerDialog
 from rword.ui.dialogs.thesaurus import ThesaurusDialog
-from rword.ui.drawing_bar import DrawingBar
 from rword.ui.editor import Editor
 from rword.ui.format_bar import FormatBar
 from rword.ui.icons import IconManager, icon_color_for
@@ -1305,11 +1304,6 @@ class MainWindow(QMainWindow):
         self.toggle_paragraphbar_action.setChecked(True)
         self.toggle_paragraphbar_action.triggered.connect(self._toggle_paragraphbar)
 
-        self.toggle_drawingbar_action = QAction("Barra de dibujo", self)
-        self.toggle_drawingbar_action.setCheckable(True)
-        self.toggle_drawingbar_action.setChecked(False)
-        self.toggle_drawingbar_action.triggered.connect(self._toggle_drawingbar)
-
         self.toggle_statusbar_action = QAction("Barra de estado", self)
         self.toggle_statusbar_action.setCheckable(True)
         self.toggle_statusbar_action.setChecked(True)
@@ -1426,10 +1420,6 @@ class MainWindow(QMainWindow):
         estilos.add_separator()
         self._ribbon_button(estilos, self.create_style_action, "sparkles")
         self._ribbon_button(estilos, self.organizer_action, "layers")
-
-        self.drawing_bar = DrawingBar(self._editor, tab, self._icon_manager)
-        dibujo = tab.add_group("Dibujo")
-        dibujo.add_widget(self.drawing_bar)
 
         archivo_tab = self.ribbon.add_tab("Archivo")
 
@@ -1620,7 +1610,6 @@ class MainWindow(QMainWindow):
         self._ribbon_button(cinta, self.toggle_toolbar_action, "panel-top")
         self._ribbon_button(cinta, self.toggle_formatbar_action, "type")
         self._ribbon_button(cinta, self.toggle_paragraphbar_action, "align-left")
-        self._ribbon_button(cinta, self.toggle_drawingbar_action, "paintbrush")
 
     def _build_tab_correspondencia(self) -> None:
         tab = self.ribbon.add_tab("Correspondencia")
@@ -2066,12 +2055,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"Documento exportado a {label}.", 5000
         )
-
-    def _toggle_drawingbar(self, checked: bool) -> None:
-        self.ribbon.set_group_visible("Edición", "Dibujo", checked)
-        if not checked:
-            self._editor.set_drawing(False)
-            self.drawing_bar.enable_action.setChecked(False)
 
     def _show_symbol_dialog(self) -> None:
         dialog = SymbolDialog(self._editor, self)

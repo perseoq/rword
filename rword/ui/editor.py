@@ -8,12 +8,10 @@ from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
-    QImage,
     QKeyEvent,
     QMouseEvent,
     QPainter,
     QPaintEvent,
-    QPen,
     QTextCursor,
 )
 from PySide6.QtWidgets import QTextEdit
@@ -40,13 +38,6 @@ class Editor(QTextEdit):
         self._find_selections: list = []
         self._comment_selections: list = []
         self._spelling_selections: list = []
-        self._drawing_enabled = False
-        self._draw_kind = "pencil"
-        self._draw_color = QColor("#000000")
-        self._draw_width = 2.0
-        self._draw_active = False
-        self._draw_last = None
-        self._draw_image: QImage | None = None
         self._grid_visible = False
         self._view_mode = "print"
         self._zoom_percent = 100
@@ -169,23 +160,6 @@ class Editor(QTextEdit):
     def view_mode(self) -> str:
         return self._view_mode
 
-    def set_drawing(self, enabled: bool, kind: str = "pencil",
-                    color: QColor | None = None, width: float = 2.0) -> None:
-        self._drawing_enabled = enabled
-        self._draw_kind = kind
-        if color is not None:
-            self._draw_color = color
-        self._draw_width = width
-        if enabled:
-            self.setCursor(Qt.CursorShape.CrossCursor)
-        else:
-            self.unsetCursor()
-            self._draw_active = False
-            self._draw_image = None
-
-    def drawing_enabled(self) -> bool:
-        return self._drawing_enabled
-
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if self.isReadOnly():
             position = self.cursorForPosition(event.position().toPoint()).position()
@@ -194,72 +168,18 @@ class Editor(QTextEdit):
             if field_at(self, position) is not None:
                 handle_field_click(self, position)
                 return
-        if self._drawing_enabled and event.button() == Qt.MouseButton.LeftButton:
-            self._draw_active = True
-            self._draw_last = event.position()
-            self._draw_image = QImage(
-                self.viewport().size(), QImage.Format.Format_ARGB32_Premultiplied
-            )
-            self._draw_image.fill(QColor(0, 0, 0, 0))
-            return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self._drawing_enabled and self._draw_active:
-            self._draw_line(event.position())
-            self.viewport().update()
-            return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if self._drawing_enabled and self._draw_active:
-            self._draw_line(event.position())
-            self._draw_active = False
-            self._insert_drawing()
-            return
         if event.button() == Qt.MouseButton.LeftButton:
             href = self.anchorAt(event.position().toPoint())
             if href:
                 self.link_clicked.emit(href)
                 return
         super().mouseReleaseEvent(event)
-
-    def _draw_line(self, point) -> None:
-        if self._draw_image is None or self._draw_last is None:
-            return
-        painter = QPainter(self._draw_image)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if self._draw_kind == "eraser":
-            painter.setCompositionMode(
-                QPainter.CompositionMode.CompositionMode_Clear
-            )
-            width = max(8.0, self._draw_width * 3)
-        else:
-            width = self._draw_width
-        if self._draw_kind == "highlighter":
-            painter.setCompositionMode(
-                QPainter.CompositionMode.CompositionMode_SourceOver
-            )
-            color = QColor(self._draw_color)
-            color.setAlpha(90)
-            painter.setPen(QPen(color, max(12.0, width * 4)))
-        else:
-            painter.setPen(QPen(self._draw_color, width))
-        painter.drawLine(self._draw_last.toPoint(), point.toPoint())
-        painter.end()
-        self._draw_last = point
-
-    def _insert_drawing(self) -> None:
-        if self._draw_image is None:
-            return
-        from rword.core.images import insert_image_from_data
-
-        rect = self._draw_image.rect()
-        cropped = self._draw_image.copy(rect)
-        if not cropped.isNull():
-            insert_image_from_data(self, cropped)
-        self._draw_image = None
-        self._draw_last = None
 
     def _mark_deletion(self, key: int) -> None:
         from rword.core.comments import deleted_format
@@ -366,10 +286,6 @@ class Editor(QTextEdit):
         super().paintEvent(event)
         if self._grid_visible:
             self._paint_grid()
-        if self._drawing_enabled and self._draw_active and self._draw_image:
-            painter = QPainter(self.viewport())
-            painter.drawImage(0, 0, self._draw_image)
-            painter.end()
         if self._watermark:
             self._paint_watermark()
 

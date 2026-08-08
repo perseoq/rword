@@ -1,5 +1,3 @@
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QMouseEvent
 
 from rword.core.hyperlinks import hyperlink_at_cursor
 from rword.core.images import image_at_cursor
@@ -86,42 +84,3 @@ def test_insert_equation(editor):
     insert_equation(editor, "a² + b² = c²")
     assert "a² + b² = c²" in editor.toPlainText()
 
-
-def test_drawing_toggle(editor):
-    editor.set_drawing(True, "pencil", QColor("red"), 3.0)
-    assert editor.drawing_enabled()
-    editor.set_drawing(False)
-    assert not editor.drawing_enabled()
-
-
-def test_drawing_inserts_image(editor, qapp):
-    editor.set_drawing(True, "pencil", QColor("black"), 3.0)
-    editor.resize(300, 200)
-    editor.show()
-    press = QMouseEvent(
-        QMouseEvent.Type.MouseButtonPress,
-        QPointF(50, 50),
-        Qt.MouseButton.LeftButton,
-        Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.NoModifier,
-    )
-    move = QMouseEvent(
-        QMouseEvent.Type.MouseMove,
-        QPointF(120, 90),
-        Qt.MouseButton.NoButton,
-        Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.NoModifier,
-    )
-    release = QMouseEvent(
-        QMouseEvent.Type.MouseButtonRelease,
-        QPointF(120, 90),
-        Qt.MouseButton.LeftButton,
-        Qt.MouseButton.NoButton,
-        Qt.KeyboardModifier.NoModifier,
-    )
-    editor.mousePressEvent(press)
-    editor.mouseMoveEvent(move)
-    editor.mouseReleaseEvent(release)
-    assert image_at_cursor(editor) is not None
-    editor.set_drawing(False)
-    editor.hide()
