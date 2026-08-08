@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from rword.core.ai import AiError
 from rword.core.ai.session import ChatSession
 
 
@@ -82,14 +81,30 @@ class AiChatPanel(QDockWidget):
             if context.strip():
                 self._session.add("user", f"Documento:\n{context}")
         self._session.add("user", question)
+        snapshot = list(self._session.history())
         client = self._client_factory()
-        try:
-            reply = client.chat(self._session.history())
-        except AiError as error:
-            self._messages.addItem(self._message_item("alert-triangle", str(error)))
-            return
+        self._send_button.setEnabled(False)
+        self._input.setEnabled(False)
+        from rword.ui.ai_worker import AiWorker
+
+        self._chat_worker = AiWorker(
+            lambda: client.chat(snapshot), self
+        )
+        self._chat_worker.finished_ok.connect(self._on_reply)
+        self._chat_worker.finished_error.connect(self._on_chat_error)
+        self._chat_worker.finished.connect(self._restore_input)
+        self._chat_worker.start()
+
+    def _on_reply(self, reply: str) -> None:
         self._session.add("assistant", reply)
         self._messages.addItem(self._message_item("bot", reply))
+
+    def _on_chat_error(self, error: str) -> None:
+        self._messages.addItem(self._message_item("alert-triangle", str(error)))
+
+    def _restore_input(self) -> None:
+        self._send_button.setEnabled(True)
+        self._input.setEnabled(True)
 
     def _message_item(self, icon_name: str, text: str):
         from PySide6.QtWidgets import QListWidgetItem

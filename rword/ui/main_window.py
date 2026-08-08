@@ -3464,17 +3464,22 @@ class MainWindow(QMainWindow):
         return DeepSeekClient(manager.get())
 
     def _ai_error(self, error) -> None:
+        self.statusBar().showMessage("", 1000)
         self._show_error(f"Error de IA:\n{error}")
 
     def _ai_run_and_apply(self, operation, insert_mode: str = "insert") -> None:
-        """Ejecuta una operación de IA y aplica el resultado al editor."""
-        from rword.core.ai import AiError
+        """Ejecuta una operación de IA en segundo plano y aplica el resultado."""
+        from rword.ui.ai_worker import AiWorker
 
-        try:
-            result = operation()
-        except AiError as error:
-            self._ai_error(error)
-            return
+        self.statusBar().showMessage("Generando con IA…", 0)
+        self._ai_worker = AiWorker(operation, self)
+        self._ai_worker.finished_ok.connect(
+            lambda result: self._ai_apply_result(result, insert_mode)
+        )
+        self._ai_worker.finished_error.connect(self._ai_error)
+        self._ai_worker.start()
+
+    def _ai_apply_result(self, result: str, insert_mode: str) -> None:
         if insert_mode == "replace_selection":
             cursor = self._editor.textCursor()
             if cursor.hasSelection():
