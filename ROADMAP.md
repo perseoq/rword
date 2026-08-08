@@ -23,7 +23,7 @@ PySide6 (Qt for Python).
 | 14 | **Corrección y recuento** | Corrector ortográfico/gramatical, diccionario, sinónimos/antónimos, contar palabras/caracteres, idioma, legibilidad | ✅ Implementada |
 | 15 | **Objetos insertados y dibujo** | Iconos/SVG/gráficos/ecuaciones/símbolos, PDF/video/audio, lápiz/pluma/resaltador/borrador, tinta→texto | ✅ Implementada |
 | 16 | **Vista y zoom** | Modos de vista, zoom, regla, cuadrícula, miniaturas, pantalla completa, dividir ventana | ✅ Implementada |
-| 17 | **Impresión y exportación** | Vista previa, imprimir (rangos/doble cara/por hoja), exportar PDF/HTML/ODT/RTF/TXT/EPUB | Pendiente |
+| 17 | **Impresión y exportación** | Vista previa, imprimir (rangos/doble cara/por hoja), exportar PDF/HTML/ODT/RTF/TXT/EPUB | ✅ Implementada |
 | 18 | **Formularios** | Casillas, botones, listas, campos de texto/número/fecha, protección de formulario | Pendiente |
 | 19 | **Seguridad** | Solo lectura, contraseñas, restricciones, firmas digitales, inspección, marcar como final | Pendiente |
 | 20 | **Automatización y macros** | Grabar/editar/ejecutar macros, asignar a botón/teclado, campos automáticos | Pendiente |

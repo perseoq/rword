@@ -34,6 +34,14 @@ from rword.config import (
     WINDOW_STATE_KEY,
 )
 from rword.core import formatting, paragraph
+from rword.core.export import (
+    export_epub,
+    export_html,
+    export_odt,
+    export_pdf,
+    export_rtf,
+    export_text,
+)
 from rword.core.pages import apply_page_setup, current_page_setup
 from rword.core.styles import FormatPainter, Style, StyleManager
 from rword.core.tables import TABLE_STYLES
@@ -131,6 +139,43 @@ class MainWindow(QMainWindow):
         self.quit_action = QAction("Salir", self)
         self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
+
+        self.print_action = QAction("Imprimir...", self)
+        self.print_action.setShortcut(QKeySequence.StandardKey.Print)
+        self.print_action.triggered.connect(self._print_document)
+
+        self.print_preview_action = QAction("Vista previa de impresión...", self)
+        self.print_preview_action.triggered.connect(self._print_preview)
+
+        self.export_pdf_action = QAction("Exportar a PDF...", self)
+        self.export_pdf_action.triggered.connect(
+            lambda: self._export("PDF", "*.pdf", export_pdf)
+        )
+
+        self.export_html_action = QAction("Exportar a HTML...", self)
+        self.export_html_action.triggered.connect(
+            lambda: self._export("HTML", "*.html *.htm", export_html)
+        )
+
+        self.export_text_action = QAction("Exportar a texto...", self)
+        self.export_text_action.triggered.connect(
+            lambda: self._export("texto", "*.txt", export_text)
+        )
+
+        self.export_rtf_action = QAction("Exportar a RTF...", self)
+        self.export_rtf_action.triggered.connect(
+            lambda: self._export("RTF", "*.rtf", export_rtf)
+        )
+
+        self.export_odt_action = QAction("Exportar a ODT...", self)
+        self.export_odt_action.triggered.connect(
+            lambda: self._export("ODT", "*.odt", export_odt)
+        )
+
+        self.export_epub_action = QAction("Exportar a EPUB...", self)
+        self.export_epub_action.triggered.connect(
+            lambda: self._export("EPUB", "*.epub", export_epub)
+        )
 
         self.undo_action = QAction("Deshacer", self)
         self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
@@ -811,6 +856,16 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.close_action)
         file_menu.addSeparator()
+        file_menu.addAction(self.print_action)
+        file_menu.addAction(self.print_preview_action)
+        export_menu = file_menu.addMenu("&Exportar")
+        export_menu.addAction(self.export_pdf_action)
+        export_menu.addAction(self.export_html_action)
+        export_menu.addAction(self.export_rtf_action)
+        export_menu.addAction(self.export_odt_action)
+        export_menu.addAction(self.export_epub_action)
+        export_menu.addAction(self.export_text_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.quit_action)
 
         edit_menu = self.menuBar().addMenu("&Edición")
@@ -1315,6 +1370,37 @@ class MainWindow(QMainWindow):
 
     def _toggle_paragraphbar(self, checked: bool) -> None:
         self.paragraph_bar.setVisible(checked)
+
+    def _print_document(self) -> None:
+        from rword.core.export import print_document
+
+        if not print_document(self._editor, self):
+            return
+
+    def _print_preview(self) -> None:
+        from rword.core.export import print_preview
+
+        print_preview(self._editor, self)
+
+    def _export(self, label: str, file_filter: str, exporter) -> None:
+        default = self._suggested_name()
+        base = Path(default).stem or "documento"
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Exportar a {label}",
+            f"{base}.{file_filter.replace('*', '').split()[0].lstrip('.')}",
+            f"Archivo {label} ({file_filter});;Todos los archivos (*)",
+        )
+        if not file_name:
+            return
+        try:
+            exporter(self._editor, file_name)
+        except OSError as error:
+            self._show_error(f"No se pudo exportar:\n{error}")
+            return
+        self.statusBar().showMessage(
+            f"Documento exportado a {label}.", 5000
+        )
 
     def _toggle_drawingbar(self, checked: bool) -> None:
         self.drawing_bar.setVisible(checked)
