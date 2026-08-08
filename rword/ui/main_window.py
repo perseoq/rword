@@ -38,6 +38,7 @@ from rword.core.themes import ThemeManager, apply_theme
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
+from rword.ui.dialogs.header_footer import HeaderFooterDialog
 from rword.ui.dialogs.image import AdjustDialog, CropDialog, ImageSizeDialog
 from rword.ui.dialogs.insert_table import InsertTableDialog
 from rword.ui.dialogs.page_setup import PageSetupDialog
@@ -558,6 +559,46 @@ class MainWindow(QMainWindow):
             self._toggle_navigation_panel
         )
 
+        self.header_action = QAction("Encabezado...", self)
+        self.header_action.triggered.connect(self._edit_header)
+
+        self.footer_action = QAction("Pie de página...", self)
+        self.footer_action.triggered.connect(self._edit_footer)
+
+        self.page_number_action = QAction("Número de página", self)
+        self.page_number_action.triggered.connect(
+            lambda: self._insert_field("PAGE")
+        )
+
+        self.date_field_action = QAction("Fecha automática", self)
+        self.date_field_action.triggered.connect(
+            lambda: self._insert_field("DATE")
+        )
+
+        self.time_field_action = QAction("Hora automática", self)
+        self.time_field_action.triggered.connect(
+            lambda: self._insert_field("TIME")
+        )
+
+        self.file_field_action = QAction("Nombre del archivo", self)
+        self.file_field_action.triggered.connect(
+            lambda: self._insert_field("FILE")
+        )
+
+        self.path_field_action = QAction("Ruta del archivo", self)
+        self.path_field_action.triggered.connect(
+            lambda: self._insert_field("PATH")
+        )
+
+        self.refresh_fields_action = QAction("Actualizar campos", self)
+        self.refresh_fields_action.triggered.connect(self._refresh_fields)
+
+        self.remove_header_action = QAction("Eliminar encabezado", self)
+        self.remove_header_action.triggered.connect(self._remove_header)
+
+        self.remove_footer_action = QAction("Eliminar pie de página", self)
+        self.remove_footer_action.triggered.connect(self._remove_footer)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -767,6 +808,20 @@ class MainWindow(QMainWindow):
         bookmark_menu.addAction(self.add_bookmark_action)
         bookmark_menu.addAction(self.go_to_bookmark_action)
         bookmark_menu.addAction(self.delete_bookmark_action)
+        header_footer_menu = insert_menu.addMenu("&Encabezado y pie")
+        header_footer_menu.addAction(self.header_action)
+        header_footer_menu.addAction(self.footer_action)
+        header_footer_menu.addSeparator()
+        field_menu = header_footer_menu.addMenu("&Campos")
+        field_menu.addAction(self.page_number_action)
+        field_menu.addAction(self.date_field_action)
+        field_menu.addAction(self.time_field_action)
+        field_menu.addAction(self.file_field_action)
+        field_menu.addAction(self.path_field_action)
+        field_menu.addAction(self.refresh_fields_action)
+        header_footer_menu.addSeparator()
+        header_footer_menu.addAction(self.remove_header_action)
+        header_footer_menu.addAction(self.remove_footer_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -1481,6 +1536,42 @@ class MainWindow(QMainWindow):
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
             self._navigation_panel.refresh()
+
+    def _edit_header(self) -> None:
+        from rword.core.headers import apply_header, set_numbering_format
+
+        dialog = HeaderFooterDialog("Encabezado de página", parent=self)
+        if dialog.exec():
+            apply_header(self._editor, dialog.template())
+            set_numbering_format(self._editor, dialog.numbering_format())
+
+    def _edit_footer(self) -> None:
+        from rword.core.headers import apply_footer, set_numbering_format
+
+        dialog = HeaderFooterDialog("Pie de página", parent=self)
+        if dialog.exec():
+            apply_footer(self._editor, dialog.template())
+            set_numbering_format(self._editor, dialog.numbering_format())
+
+    def _insert_field(self, kind: str) -> None:
+        from rword.core.headers import insert_field
+
+        insert_field(self._editor, kind)
+
+    def _refresh_fields(self) -> None:
+        from rword.core.headers import refresh_fields
+
+        refresh_fields(self._editor)
+
+    def _remove_header(self) -> None:
+        from rword.core.headers import remove_header
+
+        remove_header(self._editor)
+
+    def _remove_footer(self) -> None:
+        from rword.core.headers import remove_footer
+
+        remove_footer(self._editor)
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu
