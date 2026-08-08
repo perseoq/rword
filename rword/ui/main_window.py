@@ -1191,6 +1191,45 @@ class MainWindow(QMainWindow):
                 submenu_actions[label] = action
             self._ai_specialized[menu_name] = submenu_actions
 
+        self._ai_automation = {}
+        for menu_name, items in {
+            "&Automatización": [
+                ("Generar índice", "generate_index", None, "context"),
+                ("Generar diagrama Mermaid", "generate_mermaid", None, "context"),
+                ("Texto en tabla", "text_to_table", None, "context"),
+                ("Texto en lista", "text_to_list", None, "context"),
+                ("Texto en lista de verificación", "text_to_checklist", None, "context"),
+                ("Generar cronograma", "generate_timeline", None, "context"),
+                ("Crear tareas", "create_tasks", None, "context"),
+                ("Texto a JSON", "text_to_json", None, "context"),
+                ("Texto a XML", "text_to_xml", None, "context"),
+                ("Texto a YAML", "text_to_yaml", None, "context"),
+            ],
+            "&Productividad": [
+                ("Extraer entidades", "extract_entities", None, "context"),
+                ("Detectar fechas", "detect_dates", None, "context"),
+                ("Detectar personas", "detect_people", None, "context"),
+                ("Extraer información...", "extract_info",
+                    "Campos a extraer (p. ej. nombre, importe):", "prompt_context"),
+            ],
+            "&Marketing": [
+                ("Publicación para redes", "marketing_post", None, "context"),
+                ("Sugerir títulos", "marketing_titles", None, "context"),
+                ("Generar hashtags", "marketing_hashtags", None, "context"),
+                ("Campaña de correo", "marketing_email", None, "context"),
+                ("Optimizar SEO", "seo_optimize", None, "context"),
+                ("Metadescripción", "meta_description", None, "context"),
+            ],
+        }.items():
+            submenu_actions = {}
+            for label, function, prompt, style in items:
+                action = QAction(label, self)
+                action.triggered.connect(
+                    lambda checked=False, f=function, p=prompt, s=style: self._ai_domain(f, p, s)
+                )
+                submenu_actions[label] = action
+            self._ai_automation[menu_name] = submenu_actions
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1602,6 +1641,10 @@ class MainWindow(QMainWindow):
             domain_menu = ai_menu.addMenu(menu_name)
             for action in submenu_actions.values():
                 domain_menu.addAction(action)
+        for menu_name, submenu_actions in self._ai_automation.items():
+            automation_menu = ai_menu.addMenu(menu_name)
+            for action in submenu_actions.values():
+                automation_menu.addAction(action)
         self.ai_menu = ai_menu
 
         view_menu = self.menuBar().addMenu("&Ver")

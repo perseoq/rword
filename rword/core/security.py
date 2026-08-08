@@ -21,48 +21,6 @@ def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
-def _derive_key(password: str, salt: bytes, iterations: int = 100_000) -> bytes:
-    return hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, iterations
-    )
-
-
-def _xor_stream(data: bytes, key: bytes) -> bytes:
-    key_length = len(key)
-    return bytes(
-        byte ^ key[i % key_length] for i, byte in enumerate(data)
-    )
-
-
-def encrypt_document(content: str, password: str) -> bytes:
-    salt = os.urandom(16)
-    key = _derive_key(password, salt)
-    cipher = _xor_stream((_CONTENT_MARKER + content).encode("utf-8"), key)
-    payload = salt + cipher
-    encoded = base64.b64encode(payload).decode("ascii")
-    return f"{PROTECTED_HEADER}:{encoded}".encode("utf-8")
-
-
-def is_protected_content(data: bytes) -> bool:
-    return data.startswith(PROTECTED_HEADER.encode("ascii"))
-
-
-def decrypt_document(data: bytes, password: str) -> str | None:
-    if not is_protected_content(data):
-        return None
-    encoded = data.decode("ascii").split(":", 1)[1]
-    payload = base64.b64decode(encoded)
-    salt, cipher = payload[:16], payload[16:]
-    key = _derive_key(password, salt)
-    try:
-        plain = _xor_stream(cipher, key).decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-    if not plain.startswith(_CONTENT_MARKER):
-        return None
-    return plain[len(_CONTENT_MARKER):]
-
-
 def set_read_only(editor: QTextEdit, enabled: bool) -> None:
     editor.setReadOnly(enabled)
 
@@ -115,7 +73,7 @@ def _xor_stream(data: bytes, key: bytes) -> bytes:
 def encrypt_document(content: str, password: str) -> bytes:
     salt = os.urandom(16)
     key = _derive_key(password, salt)
-    cipher = _xor_stream(content.encode("utf-8"), key)
+    cipher = _xor_stream((_CONTENT_MARKER + content).encode("utf-8"), key)
     payload = salt + cipher
     encoded = base64.b64encode(payload).decode("ascii")
     return f"{PROTECTED_HEADER}:{encoded}".encode()
@@ -133,9 +91,12 @@ def decrypt_document(data: bytes, password: str) -> str | None:
     salt, cipher = payload[:16], payload[16:]
     key = _derive_key(password, salt)
     try:
-        return _xor_stream(cipher, key).decode("utf-8")
+        plain = _xor_stream(cipher, key).decode("utf-8")
     except UnicodeDecodeError:
         return None
+    if not plain.startswith(_CONTENT_MARKER):
+        return None
+    return plain[len(_CONTENT_MARKER):]
 
 
 def sign_document(editor: QTextEdit, signer: str) -> str:
@@ -181,7 +142,9 @@ def remove_personal_info(editor: QTextEdit) -> int:
     text = editor.toPlainText()
     emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
     cleaned = re.sub(
-        r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "[correo eliminado]", text
+        r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+        "[correo eliminado]",
+        text,
     )
     if cleaned != text:
         editor.setPlainText(cleaned)

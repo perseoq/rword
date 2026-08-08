@@ -374,3 +374,122 @@ def generate_bibliography(client, text: str) -> str:
         "Genera una bibliografía en formato académico a partir del texto:",
         text,
     )
+
+
+# --- Automatización --------------------------------------------------------
+
+def generate_index(client, text: str) -> str:
+    return _chat(client, "Genera un índice estructurado del documento:", text)
+
+
+def generate_mermaid(client, text: str) -> str:
+    return _chat(
+        client,
+        "Genera un diagrama Mermaid a partir del contenido. "
+        "Devuelve solo el bloque ```mermaid...```:",
+        text,
+        temperature=0.3,
+    )
+
+
+def text_to_table(client, text: str) -> str:
+    return _chat(
+        client,
+        "Convierte el contenido en una tabla con valores separados por tabuladores:",
+        text,
+    )
+
+
+def text_to_list(client, text: str) -> str:
+    return _chat(client, "Convierte el contenido en una lista con viñetas:", text)
+
+
+def text_to_checklist(client, text: str) -> str:
+    return _chat(client, "Convierte el contenido en una lista de verificación:", text)
+
+
+def text_to_json(client, text: str) -> str:
+    return _chat(
+        client,
+        "Convierte el contenido en un documento JSON válido:",
+        text,
+        temperature=0.2,
+    )
+
+
+def text_to_xml(client, text: str) -> str:
+    return _chat(
+        client, "Convierte el contenido en un documento XML bien formado:", text
+    )
+
+
+def text_to_yaml(client, text: str) -> str:
+    return _chat(
+        client, "Convierte el contenido en un documento YAML:", text
+    )
+
+
+def generate_timeline(client, text: str) -> str:
+    return _chat(client, "Genera un cronograma a partir del contenido:", text)
+
+
+def create_tasks(client, text: str) -> str:
+    return _chat(client, "Crea una lista de tareas accionables a partir del texto:", text)
+
+
+# --- Productividad ---------------------------------------------------------
+
+def extract_entities(client, text: str) -> str:
+    return _chat(
+        client,
+        "Extrae fechas, personas, empresas, teléfonos, correos y direcciones "
+        "del texto. Devuelve una lista estructurada.",
+        text,
+    )
+
+
+def detect_dates(client, text: str) -> str:
+    return _chat(client, "Detecta todas las fechas importantes del texto:", text)
+
+
+def detect_people(client, text: str) -> str:
+    return _chat(client, "Detecta los nombres de personas del texto:", text)
+
+
+def extract_info(client, text: str, fields: str) -> str:
+    return _chat(
+        client,
+        f"Extrae la siguiente información del texto como pares campo/valor: {fields}",
+        text,
+        temperature=0.2,
+    )
+
+
+# --- Marketing -------------------------------------------------------------
+
+def marketing_post(client, text: str) -> str:
+    return _chat(client, "Crea una publicación para redes sociales a partir del texto:", text)
+
+
+def marketing_titles(client, text: str) -> str:
+    return _chat(client, "Propón títulos atractivos para el texto:", text)
+
+
+def marketing_hashtags(client, text: str) -> str:
+    return _chat(client, "Genera hashtags relevantes para el texto:", text)
+
+
+def marketing_email(client, text: str) -> str:
+    return _chat(client, "Redacta una campaña de correo promocional a partir del texto:", text)
+
+
+def seo_optimize(client, text: str) -> str:
+    return _chat(client, "Optimiza el texto para SEO con palabras clave sugeridas:", text)
+
+
+def meta_description(client, text: str) -> str:
+    return _chat(
+        client,
+        "Genera una metadescripción de SEO de menos de 160 caracteres para el texto:",
+        text,
+    )
