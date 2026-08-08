@@ -6,10 +6,19 @@ from rword.ui.ribbon import RibbonGroup
 
 def test_ribbon_tabs(main_window):
     titles = main_window.ribbon.tab_titles()
-    assert "Edición" in titles
+    assert titles[0] == "Edición"
+    assert titles[1] == "Archivo"
     assert "Insertar" in titles
     assert "Diseño de página" in titles
     assert "IA" in titles
+
+
+def test_archivo_tab_blocks(main_window):
+    tab = main_window.ribbon._stack.widget(1)
+    titles = [g.title for g in tab._groups]
+    assert "Archivo" in titles
+    assert "Portapapeles" in titles
+    assert "Edición" in titles
 
 
 def test_ribbon_groups(main_window):

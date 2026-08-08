@@ -113,10 +113,10 @@ def test_research_and_bibliography():
 
 def test_specialized_menu_built(main_window):
     assert "&Legal" in main_window._ai_specialized
-    assert "&Programación" in main_window._ai_specialized
-    assert "&Educación" in main_window._ai_specialized
-    assert "&Negocios" in main_window._ai_specialized
     assert "&Investigación" in main_window._ai_specialized
+    assert "&Programación" not in main_window._ai_specialized
+    assert "&Educación" not in main_window._ai_specialized
+    assert "&Negocios" not in main_window._ai_specialized
 
 
 def test_ai_domain_context(main_window):

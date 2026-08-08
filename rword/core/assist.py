@@ -103,9 +103,5 @@ def style_sample_from_selection(editor: QTextEdit) -> str:
 
 AGENTS = {
     "Abogado": "abogado especializado en derecho contractual",
-    "Contador": "contador público experto en finanzas",
-    "Médico": "profesional de la salud",
     "Profesor": "docente experto en pedagogía",
-    "Programador": "desarrollador de software senior",
-    "Analista": "analista de negocios",
 }

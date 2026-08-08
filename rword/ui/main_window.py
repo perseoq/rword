@@ -1206,30 +1206,6 @@ class MainWindow(QMainWindow):
                     "Texto del segundo contrato:", "prompt_compare"),
                 ("Resumir contrato", "summarize_contract", None, "context"),
             ],
-            "&Programación": [
-                ("Formatear código", "format_code", None, "context"),
-                ("Explicar código", "explain_code", None, "context"),
-                ("Generar código...", "generate_code", "Descripción del código:", "prompt"),
-                ("Convertir lenguaje...", "convert_language",
-                    "Lenguaje destino:", "prompt_context"),
-                ("Documentar función", "document_function", None, "context"),
-                ("Detectar errores", "detect_code_errors", None, "context"),
-                ("Optimizar código", "optimize_code", None, "context"),
-                ("Crear consulta SQL...", "sql_query", "Descripción de la consulta:", "prompt"),
-            ],
-            "&Educación": [
-                ("Explicar concepto...", "explain_concept", "Concepto:", "prompt"),
-                ("Generar ejercicios...", "generate_exercises", "Tema:", "prompt_count"),
-                ("Resolver problema...", "solve_problem", "Problema:", "prompt"),
-                ("Crear cuestionario...", "create_quiz", "Tema:", "prompt_count"),
-                ("Crear tarjetas de repaso...", "create_flashcards", "Tema:", "prompt_count"),
-            ],
-            "&Negocios": [
-                ("Propuesta comercial...", "write_proposal", "Descripción:", "prompt"),
-                ("Correo profesional...", "write_email", "Situación:", "prompt"),
-                ("Minuta de reunión", "meeting_minutes", None, "context"),
-                ("Reporte ejecutivo", "executive_report", None, "context"),
-            ],
             "&Investigación": [
                 ("Investigar tema...", "research", "Tema:", "prompt"),
                 ("Generar bibliografía", "generate_bibliography", None, "context"),
@@ -1355,7 +1331,7 @@ class MainWindow(QMainWindow):
         self.ribbon = RibbonBar(self._icon_manager, self)
         self._root_layout.insertWidget(0, self.ribbon)
         self._build_dynamic_menus()
-        self._build_tab_inicio()
+        self._build_tabs_edicion_archivo()
         self._build_tab_insertar()
         self._build_tab_diseno()
         self._build_tab_referencias()
@@ -1434,35 +1410,8 @@ class MainWindow(QMainWindow):
         ):
             self.ai_premium_menu.addAction(action)
 
-    def _build_tab_inicio(self) -> None:
+    def _build_tabs_edicion_archivo(self) -> None:
         tab = self.ribbon.add_tab("Edición")
-
-        archivo = tab.add_group("Archivo")
-        self._ribbon_button(archivo, self.new_action, "file-plus", large=True)
-        self._ribbon_button(archivo, self.open_action, "folder-open", large=True)
-        self._ribbon_button(archivo, self.save_action, "save", large=True)
-        self._ribbon_button(archivo, self.save_as_action, "files", large=True)
-        archivo.add_separator()
-        self._ribbon_button(archivo, self.close_action, "x")
-        self._ribbon_button(archivo, self.print_action, "printer")
-        self._ribbon_button(archivo, self.print_preview_action, "eye")
-        self._ribbon_dropdown(archivo, "Exportar", "file-text", self.export_menu)
-
-        portapapeles = tab.add_group("Portapapeles")
-        self._ribbon_button(portapapeles, self.cut_action, "scissors")
-        self._ribbon_button(portapapeles, self.copy_action, "copy")
-        self._ribbon_button(portapapeles, self.paste_action, "clipboard")
-        self._ribbon_button(portapapeles, self.painter_action, "paintbrush")
-        self._ribbon_dropdown(portapapeles, "Portapapeles", "clipboard", self.clipboard_menu)
-
-        edicion = tab.add_group("Edición")
-        self._ribbon_button(edicion, self.undo_action, "undo-2")
-        self._ribbon_button(edicion, self.redo_action, "redo-2")
-        edicion.add_separator()
-        self._ribbon_button(edicion, self.find_action, "search")
-        self._ribbon_button(edicion, self.replace_action, "replace")
-        self._ribbon_button(edicion, self.go_to_action, "corner-down-right")
-        self._ribbon_dropdown(edicion, "Seleccionar", "check-square", self._selection_menu())
 
         self.format_bar = FormatBar(self._editor, tab, self._icon_manager)
         fuente = tab.add_group("Fuente")
@@ -1481,6 +1430,36 @@ class MainWindow(QMainWindow):
         self.drawing_bar = DrawingBar(self._editor, tab, self._icon_manager)
         dibujo = tab.add_group("Dibujo")
         dibujo.add_widget(self.drawing_bar)
+
+        archivo_tab = self.ribbon.add_tab("Archivo")
+
+        archivo = archivo_tab.add_group("Archivo")
+        self._ribbon_button(archivo, self.new_action, "file-plus", large=True)
+        self._ribbon_button(archivo, self.open_action, "folder-open", large=True)
+        self._ribbon_button(archivo, self.save_action, "save", large=True)
+        self._ribbon_button(archivo, self.save_as_action, "files", large=True)
+        archivo.add_separator()
+        self._ribbon_button(archivo, self.close_action, "x")
+        self._ribbon_button(archivo, self.print_action, "printer")
+        self._ribbon_button(archivo, self.print_preview_action, "eye")
+        self._ribbon_dropdown(archivo, "Exportar", "file-text", self.export_menu)
+
+        portapapeles = archivo_tab.add_group("Portapapeles")
+        self._ribbon_button(portapapeles, self.cut_action, "scissors")
+        self._ribbon_button(portapapeles, self.copy_action, "copy")
+        self._ribbon_button(portapapeles, self.paste_action, "clipboard")
+        self._ribbon_button(portapapeles, self.painter_action, "paintbrush")
+        self._ribbon_dropdown(portapapeles, "Portapapeles", "clipboard", self.clipboard_menu)
+
+        edicion = archivo_tab.add_group("Edición")
+        self._ribbon_button(edicion, self.undo_action, "undo-2")
+        self._ribbon_button(edicion, self.redo_action, "redo-2")
+        edicion.add_separator()
+        self._ribbon_button(edicion, self.find_action, "search")
+        self._ribbon_button(edicion, self.replace_action, "replace")
+        self._ribbon_button(edicion, self.go_to_action, "corner-down-right")
+        self._ribbon_dropdown(edicion, "Seleccionar", "check-square", self._selection_menu())
+
 
     def _selection_menu(self) -> QMenu:
         menu = QMenu(self)
@@ -1775,7 +1754,7 @@ class MainWindow(QMainWindow):
         self._ribbon_button(seleccion, self.ai_selection_questions_action, "help-circle")
 
         dominios = tab.add_group("Dominios")
-        for label in ("Legal", "Programación", "Educación", "Negocios", "Investigación"):
+        for label in ("Legal", "Investigación"):
             key = f"&{label}"
             menu = self.ai_domain_menus.get(key)
             if menu is not None:

@@ -87,8 +87,7 @@ def test_style_sample_from_selection(editor):
 
 
 def test_agents_defined():
-    assert "Abogado" in AGENTS
-    assert "Programador" in AGENTS
+    assert set(AGENTS) == {"Abogado", "Profesor"}
 
 
 def test_generate_glossary(editor):
