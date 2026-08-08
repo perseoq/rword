@@ -40,6 +40,8 @@ el commit correspondiente cuando queda terminado y validado.
 - [x] **Soporte de formato .docx** (Word) como formato por defecto: abrir y
       guardar con `python-docx` (texto con formato, listas, tablas e
       imágenes), filtro por defecto en Archivo y nombre sugerido `.docx`.
+      El HTML completo del editor se incrusta en el `.docx` para conservar
+      el formato exacto al reabrir en la app.
 
 ## v0.3.0 — Futuro (pendientes)
 

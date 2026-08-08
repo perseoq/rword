@@ -95,3 +95,21 @@ def test_save_as_adds_docx_extension(main_window, tmp_path, monkeypatch):
     )
     main_window._save_document_as()
     assert main_window._editor.file_path == tmp_path / "salida.docx"
+
+
+def test_docx_roundtrip_preserves_full_formatting(editor, tmp_path):
+    editor.setHtml(
+        "<p style='text-align:center'><b>Centrado y negrita</b></p>"
+        "<p><span style='color:#ff0000'>Texto en rojo</span></p>"
+    )
+    path = tmp_path / "full.docx"
+    save_docx(editor, path)
+
+    editor.clear()
+    load_docx(editor, path)
+    text = editor.toPlainText()
+    assert "Centrado y negrita" in text
+    assert "Texto en rojo" in text
+    html = editor.toHtml()
+    assert "ff0000" in html or "#ff0000" in html
+    assert "<b" in html or "font-weight" in html
