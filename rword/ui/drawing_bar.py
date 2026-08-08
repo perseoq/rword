@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QColor
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
-    QHBoxLayout,
+    QGridLayout,
     QLabel,
     QSizePolicy,
     QSpinBox,
@@ -19,7 +19,7 @@ from rword.ui.icons import IconManager, icon_color_for
 
 
 class DrawingBar(QWidget):
-    """Fila de dibujo: herramienta, grosor, color y activación."""
+    """Controles de dibujo distribuidos en dos filas."""
 
     def __init__(self, editor: Editor, parent=None, icon_manager=None) -> None:
         super().__init__(parent)
@@ -27,37 +27,37 @@ class DrawingBar(QWidget):
         self._icons = icon_manager or IconManager(icon_color_for(self))
         self._color = QColor("#000000")
         self._width = 2.0
-        self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(2, 0, 2, 0)
-        self._layout.setSpacing(4)
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(2, 0, 2, 0)
+        self._grid.setSpacing(4)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._build()
 
     def _build(self) -> None:
-        self._layout.addWidget(QLabel("Herramienta:", self))
+        self._grid.addWidget(QLabel("Herramienta:", self), 0, 0)
         self._tool_combo = QComboBox(self)
         self._tool_combo.addItems(["Lápiz", "Pluma", "Resaltador", "Borrador"])
         self._tool_combo.setFixedWidth(110)
         self._tool_combo.currentIndexChanged.connect(self._update_tool)
-        self._layout.addWidget(self._tool_combo)
+        self._grid.addWidget(self._tool_combo, 0, 1)
 
-        self._layout.addWidget(QLabel("Grosor:", self))
+        self._grid.addWidget(QLabel("Grosor:", self), 0, 2)
         self._width_spin = QSpinBox(self)
         self._width_spin.setRange(1, 20)
         self._width_spin.setValue(2)
         self._width_spin.valueChanged.connect(self._update_width)
-        self._layout.addWidget(self._width_spin)
+        self._grid.addWidget(self._width_spin, 0, 3)
 
         self.color_action = QAction("Color...", self)
         self.color_action.triggered.connect(self._choose_color)
         self._icons.register(self.color_action, "palette", 16)
-        self._layout.addWidget(self._action_button(self.color_action))
+        self._grid.addWidget(self._action_button(self.color_action), 1, 0)
 
         self.enable_action = QAction("Activar dibujo", self)
         self.enable_action.setCheckable(True)
         self.enable_action.toggled.connect(self._toggle)
         self._icons.register(self.enable_action, "paintbrush", 16)
-        self._layout.addWidget(self._action_button(self.enable_action))
+        self._grid.addWidget(self._action_button(self.enable_action), 1, 1)
 
     def _action_button(self, action: QAction):
         from PySide6.QtCore import Qt
