@@ -42,6 +42,7 @@ from rword.ui.dialogs.image import AdjustDialog, CropDialog, ImageSizeDialog
 from rword.ui.dialogs.insert_table import InsertTableDialog
 from rword.ui.dialogs.page_setup import PageSetupDialog
 from rword.ui.dialogs.paragraph import ParagraphDialog
+from rword.ui.dialogs.shape import ShapeDialog, WordArtDialog
 from rword.ui.dialogs.style import StyleDialog
 from rword.ui.dialogs.style_organizer import StyleOrganizerDialog
 from rword.ui.editor import Editor
@@ -511,6 +512,28 @@ class MainWindow(QMainWindow):
         self.image_delete_action = QAction("Eliminar imagen", self)
         self.image_delete_action.triggered.connect(self._delete_image)
 
+        self.shape_dialog_action = QAction("Insertar forma...", self)
+        self.shape_dialog_action.triggered.connect(self._show_shape_dialog)
+
+        self.text_box_action = QAction("Insertar cuadro de texto...", self)
+        self.text_box_action.triggered.connect(self._insert_text_box)
+
+        self.wordart_action = QAction("Insertar WordArt...", self)
+        self.wordart_action.triggered.connect(self._show_wordart_dialog)
+
+        self.shape_actions = {}
+        for key, label in {
+            "rectangle": "Rectángulo",
+            "ellipse": "Círculo",
+            "line": "Línea",
+            "arrow": "Flecha",
+        }.items():
+            action = QAction(label, self)
+            action.triggered.connect(
+                lambda checked=False, k=key: self._insert_shape_quick(k)
+            )
+            self.shape_actions[key] = action
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -699,6 +722,15 @@ class MainWindow(QMainWindow):
         image_menu.addSeparator()
         image_menu.addAction(self.image_replace_action)
         image_menu.addAction(self.image_delete_action)
+
+        shapes_menu = self.menuBar().addMenu("&Formas")
+        shapes_menu.addAction(self.shape_dialog_action)
+        shapes_menu.addSeparator()
+        for action in self.shape_actions.values():
+            shapes_menu.addAction(action)
+        shapes_menu.addSeparator()
+        shapes_menu.addAction(self.text_box_action)
+        shapes_menu.addAction(self.wordart_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
@@ -1297,6 +1329,46 @@ class MainWindow(QMainWindow):
         from rword.core.images import delete_image
 
         delete_image(self._editor)
+
+    def _show_shape_dialog(self) -> None:
+        dialog = ShapeDialog(self)
+        if dialog.exec():
+            from rword.core.shapes import insert_shape
+
+            values = dialog.values()
+            insert_shape(
+                self._editor,
+                values["kind"],
+                values["width"],
+                values["height"],
+                values["fill"],
+                values["border"],
+            )
+
+    def _insert_shape_quick(self, kind: str) -> None:
+        from rword.core.shapes import insert_shape
+
+        insert_shape(self._editor, kind)
+
+    def _insert_text_box(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.shapes import insert_text_box
+
+        text, ok = QInputDialog.getText(
+            self, "Cuadro de texto", "Texto del cuadro:"
+        )
+        if ok:
+            insert_text_box(self._editor, text)
+
+    def _show_wordart_dialog(self) -> None:
+        dialog = WordArtDialog(self)
+        if dialog.exec():
+            from rword.core.shapes import insert_wordart
+
+            text, style = dialog.values()
+            if not insert_wordart(self._editor, text, style):
+                self._show_error("Introduzca un texto para el WordArt.")
 
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu
