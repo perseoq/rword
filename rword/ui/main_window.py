@@ -898,6 +898,33 @@ class MainWindow(QMainWindow):
         self._macro_recorder = None
         self._macro_shortcut_actions: list = []
 
+        self.data_source_action = QAction("Seleccionar origen de datos...", self)
+        self.data_source_action.triggered.connect(self._select_data_source)
+
+        self.insert_field_action = QAction("Insertar campo", self)
+        self.insert_field_action.triggered.connect(self._insert_merge_field)
+
+        self.preview_merge_action = QAction("Vista previa de resultados...", self)
+        self.preview_merge_action.triggered.connect(self._preview_merge)
+
+        self.filter_merge_action = QAction("Filtrar destinatarios...", self)
+        self.filter_merge_action.triggered.connect(self._filter_records)
+
+        self.sort_merge_action = QAction("Ordenar destinatarios...", self)
+        self.sort_merge_action.triggered.connect(self._sort_records)
+
+        self.generate_letters_action = QAction("Generar cartas...", self)
+        self.generate_letters_action.triggered.connect(self._generate_letters)
+
+        self.generate_labels_action = QAction("Generar etiquetas...", self)
+        self.generate_labels_action.triggered.connect(self._generate_labels)
+
+        self.generate_envelopes_action = QAction("Generar sobres...", self)
+        self.generate_envelopes_action.triggered.connect(self._generate_envelopes)
+
+        self.email_merge_action = QAction("Enviar por correo...", self)
+        self.email_merge_action.triggered.connect(self._send_email)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1223,6 +1250,20 @@ class MainWindow(QMainWindow):
         automation_menu.addAction(self.variables_action)
         self.automation_menu = automation_menu
         automation_menu.aboutToShow.connect(self._rebuild_macro_shortcuts)
+
+        mail_menu = self.menuBar().addMenu("&Correspondencia")
+        mail_menu.addAction(self.data_source_action)
+        self.field_menu = mail_menu.addMenu("&Insertar campo")
+        self.field_menu.aboutToShow.connect(self._rebuild_field_menu)
+        mail_menu.addAction(self.preview_merge_action)
+        mail_menu.addAction(self.filter_merge_action)
+        mail_menu.addAction(self.sort_merge_action)
+        mail_menu.addSeparator()
+        mail_menu.addAction(self.generate_letters_action)
+        mail_menu.addAction(self.generate_labels_action)
+        mail_menu.addAction(self.generate_envelopes_action)
+        mail_menu.addSeparator()
+        mail_menu.addAction(self.email_merge_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
@@ -2487,6 +2528,227 @@ class MainWindow(QMainWindow):
         item = var_list.currentItem()
         if item is not None and remove_variable(self._editor, item.text()):
             var_list.takeItem(var_list.row(item))
+
+    def _select_data_source(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.mailmerge import (
+            data_fields,
+            load_csv,
+            load_sqlite,
+            set_records,
+        )
+
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Origen de datos", "",
+            "CSV (*.csv);;Base de datos SQLite (*.db *.sqlite);;Todos los archivos (*)",
+        )
+        if not file_name:
+            return
+        try:
+            if file_name.endswith(".csv"):
+                records = load_csv(file_name)
+            else:
+                query, ok = QInputDialog.getText(
+                    self, "Base de datos",
+                    "Consulta SQL (p. ej. SELECT * FROM contactos):",
+                    text="SELECT * FROM contactos",
+                )
+                if not ok:
+                    return
+                records = load_sqlite(file_name, query)
+        except Exception as error:
+            self._show_error(f"No se pudieron cargar los datos:\n{error}")
+            return
+        if not records:
+            self._show_error("El origen de datos no contiene registros.")
+            return
+        set_records(self._editor, records, file_name)
+        self._merge_fields = data_fields(records)
+        self.statusBar().showMessage(
+            f"Origen de datos cargado: {len(records)} registros.", 5000
+        )
+
+    def _rebuild_field_menu(self) -> None:
+        self.field_menu.clear()
+        fields = getattr(self, "_merge_fields", [])
+        if not fields:
+            action = self.field_menu.addAction("(sin origen de datos)")
+            action.setEnabled(False)
+            return
+        for field in fields:
+            action = self.field_menu.addAction(f"{{{field}}}")
+            action.triggered.connect(
+                lambda checked=False, f=field: self._insert_merge_field(f)
+            )
+
+    def _insert_merge_field(self, field: str | None = None) -> None:
+        if field is None:
+            from PySide6.QtWidgets import QInputDialog
+
+            from rword.core.mailmerge import data_fields, records_of
+
+            fields = data_fields(records_of(self._editor))
+            if not fields:
+                self._show_error("Seleccione primero un origen de datos.")
+                return
+            field, ok = QInputDialog.getItem(
+                self, "Insertar campo", "Campo:", fields, 0, False
+            )
+            if not ok:
+                return
+        self._editor.insertPlainText("{" + field + "}")
+
+    def _preview_merge(self) -> None:
+        from rword.core.mailmerge import records_of
+        from rword.ui.dialogs.mailmerge import MailMergePreviewDialog
+
+        records = records_of(self._editor)
+        if not records:
+            self._show_error("Seleccione primero un origen de datos.")
+            return
+        dialog = MailMergePreviewDialog(self._editor, records, self)
+        dialog.exec()
+
+    def _filter_records(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.mailmerge import (
+            data_fields,
+            distinct_values,
+            filter_records,
+            records_of,
+            set_records,
+        )
+
+        records = records_of(self._editor)
+        fields = data_fields(records)
+        if not fields:
+            return
+        field, ok = QInputDialog.getItem(
+            self, "Filtrar destinatarios", "Columna:", fields, 0, False
+        )
+        if not ok:
+            return
+        values = distinct_values(records, field)
+        value, ok = QInputDialog.getItem(
+            self, "Filtrar destinatarios", "Valor:", values, 0, False
+        )
+        if ok:
+            filtered = filter_records(records, field, value)
+            set_records(self._editor, filtered)
+            self.statusBar().showMessage(f"{len(filtered)} destinatarios.", 4000)
+
+    def _sort_records(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.mailmerge import (
+            data_fields,
+            records_of,
+            set_records,
+            sort_records,
+        )
+
+        records = records_of(self._editor)
+        fields = data_fields(records)
+        if not fields:
+            return
+        field, ok = QInputDialog.getItem(
+            self, "Ordenar destinatarios", "Columna:", fields, 0, False
+        )
+        if ok:
+            set_records(self._editor, sort_records(records, field))
+
+    def _generate_letters(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.mailmerge import records_of
+
+        records = records_of(self._editor)
+        if not records:
+            self._show_error("Seleccione primero un origen de datos.")
+            return
+        count, ok = QInputDialog.getInt(
+            self, "Generar cartas", "Número de cartas a generar:", len(records),
+            1, len(records),
+        )
+        if not ok:
+            return
+        from rword.core.mailmerge import generate_letters
+
+        combined = generate_letters(self._editor, records[:count])
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Guardar cartas combinadas", "cartas.txt", "Texto (*.txt)"
+        )
+        if file_name:
+            Path(file_name).write_text(combined, encoding="utf-8")
+
+    def _generate_labels(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.mailmerge import (
+            data_fields,
+            generate_labels,
+            records_of,
+        )
+
+        records = records_of(self._editor)
+        fields = data_fields(records)
+        if not fields:
+            return
+        chosen, ok = QInputDialog.getItem(
+            self, "Generar etiquetas", "Campo de la etiqueta:", fields, 0, False
+        )
+        if not ok:
+            return
+        columns, ok = QInputDialog.getInt(
+            self, "Generar etiquetas", "Columnas por fila:", 3, 1, 6
+        )
+        if ok:
+            output = generate_labels(records, [chosen], columns)
+            self._editor.insertPlainText(output)
+
+    def _generate_envelopes(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.mailmerge import (
+            data_fields,
+            generate_envelopes,
+            records_of,
+        )
+
+        records = records_of(self._editor)
+        fields = data_fields(records)
+        if not fields:
+            return
+        chosen, ok = QInputDialog.getItem(
+            self, "Generar sobres", "Campo de dirección:", fields, 0, False
+        )
+        if ok:
+            output = generate_envelopes(self._editor, records, [chosen])
+            self._editor.insertPlainText(output)
+
+    def _send_email(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.mailmerge import mailto_link, records_of
+
+        records = records_of(self._editor)
+        if not records:
+            self._show_error("Seleccione primero un origen de datos.")
+            return
+        subject, ok = QInputDialog.getText(
+            self, "Enviar por correo", "Asunto:", text="Comunicación"
+        )
+        if not ok:
+            return
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        for record in records[:10]:
+            link = mailto_link(record, subject)
+            if link:
+                QDesktopServices.openUrl(QUrl(link))
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
