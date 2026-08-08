@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -44,6 +44,12 @@ class Editor(QTextEdit):
         self._macro_recorder = None
         self._completer = None
         self._completer_words: set[str] = set()
+        self._outer_vbar = None
+        self._dragging = False
+        self._drag_anchor = None
+        self._drag_local = None
+        self._drag_moved = False
+        self._drag_timer = None
 
     def set_completion_words(self, words: list[str]) -> None:
         from PySide6.QtWidgets import QCompleter
@@ -168,18 +174,114 @@ class Editor(QTextEdit):
             if field_at(self, position) is not None:
                 handle_field_click(self, position)
                 return
+            super().mousePressEvent(event)
+            return
+        if event.button() == Qt.MouseButton.LeftButton:
+            cursor = self.cursorForPosition(event.position().toPoint())
+            self._drag_anchor = cursor.position()
+            self._drag_local = event.position()
+            self._dragging = True
+            self._drag_moved = False
+            self.setTextCursor(cursor)
+            self.setFocus()
+            self._start_drag_timer()
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._dragging and event.buttons() & Qt.MouseButton.LeftButton:
+            self._drag_local = event.position()
+            local = event.position().toPoint()
+            if self._drag_anchor is not None and (
+                abs(local.x() - self.cursorRect().center().x()) > 3
+                or abs(local.y() - self.cursorRect().center().y()) > 3
+            ):
+                self._drag_moved = True
+            self._extend_selection_to(local)
+            self._maybe_auto_scroll(local)
+            event.accept()
+            return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._dragging and event.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+            self._stop_drag_timer()
+            if self._drag_moved:
+                self._extend_selection_to(event.position().toPoint())
+            else:
+                cursor = self.cursorForPosition(event.position().toPoint())
+                self.setTextCursor(cursor)
+                href = self.anchorAt(event.position().toPoint())
+                if href:
+                    self.link_clicked.emit(href)
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             href = self.anchorAt(event.position().toPoint())
             if href:
                 self.link_clicked.emit(href)
                 return
         super().mouseReleaseEvent(event)
+
+    def wheelEvent(self, event) -> None:
+        bar = getattr(self, "_outer_vbar", None)
+        if bar is not None:
+            delta = event.angleDelta().y()
+            if delta:
+                step = -int(delta / 120) * 60
+                bar.setValue(bar.value() + step)
+                event.accept()
+                return
+        super().wheelEvent(event)
+
+    def _start_drag_timer(self) -> None:
+        if self._drag_timer is None:
+            self._drag_timer = QTimer(self)
+            self._drag_timer.setInterval(50)
+            self._drag_timer.timeout.connect(self._drag_tick)
+        self._drag_timer.start()
+
+    def _stop_drag_timer(self) -> None:
+        if self._drag_timer is not None:
+            self._drag_timer.stop()
+
+    def _drag_tick(self) -> None:
+        if not self._dragging:
+            self._stop_drag_timer()
+            return
+        local = getattr(self, "_drag_local", None)
+        if local is None:
+            return
+        point = local.toPoint()
+        if self._maybe_auto_scroll(point):
+            self._extend_selection_to(point)
+
+    def _maybe_auto_scroll(self, local) -> bool:
+        bar = getattr(self, "_outer_vbar", None)
+        if bar is None:
+            return False
+        edge = 40
+        step = 14
+        viewport = self.viewport()
+        y = local.y()
+        if y < edge and bar.value() > bar.minimum():
+            bar.setValue(max(bar.minimum(), bar.value() - step))
+            return True
+        if y > viewport.height() - edge and bar.value() < bar.maximum():
+            bar.setValue(min(bar.maximum(), bar.value() + step))
+            return True
+        return False
+
+    def _extend_selection_to(self, local) -> None:
+        if self._drag_anchor is None:
+            return
+        cursor = self.cursorForPosition(local)
+        selection = self.textCursor()
+        selection.setPosition(self._drag_anchor)
+        selection.setPosition(cursor.position(), QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(selection)
 
     def _mark_deletion(self, key: int) -> None:
         from rword.core.comments import deleted_format

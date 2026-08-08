@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QFont, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QProgressBar,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -1794,6 +1795,18 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.words_label)
         self.statusBar().addPermanentWidget(self.chars_label)
         self.statusBar().addPermanentWidget(self.modified_label)
+
+        self._ai_progress = QProgressBar(self)
+        self._ai_progress.setRange(0, 100)
+        self._ai_progress.setValue(0)
+        self._ai_progress.setFormat("%p%")
+        self._ai_progress.setTextVisible(True)
+        self._ai_progress.setFixedWidth(130)
+        self._ai_progress.hide()
+        self._ai_progress_timer = QTimer(self)
+        self._ai_progress_timer.setInterval(120)
+        self._ai_progress_timer.timeout.connect(self._ai_progress_tick)
+        self.statusBar().addPermanentWidget(self._ai_progress)
         self._update_presence_label()
 
     def _connect_editor_signals(self) -> None:
@@ -3467,16 +3480,32 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("", 1000)
         self._show_error(f"Error de IA:\n{error}")
 
+    def _ai_progress_start(self) -> None:
+        self._ai_progress.setValue(0)
+        self._ai_progress.show()
+        self._ai_progress_timer.start()
+
+    def _ai_progress_tick(self) -> None:
+        if self._ai_progress.value() < 95:
+            self._ai_progress.setValue(min(95, self._ai_progress.value() + 5))
+
+    def _ai_progress_finish(self) -> None:
+        self._ai_progress_timer.stop()
+        self._ai_progress.setValue(100)
+        QTimer.singleShot(600, self._ai_progress.hide)
+
     def _ai_run_and_apply(self, operation, insert_mode: str = "insert") -> None:
         """Ejecuta una operación de IA en segundo plano y aplica el resultado."""
         from rword.ui.ai_worker import AiWorker
 
         self.statusBar().showMessage("Generando con IA…", 0)
+        self._ai_progress_start()
         self._ai_worker = AiWorker(operation, self)
         self._ai_worker.finished_ok.connect(
             lambda result: self._ai_apply_result(result, insert_mode)
         )
         self._ai_worker.finished_error.connect(self._ai_error)
+        self._ai_worker.finished.connect(self._ai_progress_finish)
         self._ai_worker.start()
 
     def _ai_apply_result(self, result: str, insert_mode: str) -> None:
@@ -3573,7 +3602,12 @@ class MainWindow(QMainWindow):
 
         if self._ai_chat_panel is None:
             self._ai_chat_panel = AiChatPanel(
-                self._editor, self._ai_client, self, self._icon_manager
+                self._editor,
+                self._ai_client,
+                self,
+                self._icon_manager,
+                self._ai_progress_start,
+                self._ai_progress_finish,
             )
             self.addDockWidget(
                 Qt.DockWidgetArea.RightDockWidgetArea, self._ai_chat_panel

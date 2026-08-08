@@ -19,11 +19,21 @@ from rword.core.ai.session import ChatSession
 class AiChatPanel(QDockWidget):
     """Permite conversar con la IA sobre el documento abierto."""
 
-    def __init__(self, editor, client_factory, parent=None, icon_manager=None) -> None:
+    def __init__(
+        self,
+        editor,
+        client_factory,
+        parent=None,
+        icon_manager=None,
+        progress_start=None,
+        progress_finish=None,
+    ) -> None:
         super().__init__("Chat con IA", parent)
         self._editor = editor
         self._client_factory = client_factory
         self._icon_manager = icon_manager
+        self._progress_start = progress_start
+        self._progress_finish = progress_finish
         self.setObjectName("ai_chat_panel")
         self.setMinimumWidth(320)
         self._session = ChatSession()
@@ -85,6 +95,8 @@ class AiChatPanel(QDockWidget):
         client = self._client_factory()
         self._send_button.setEnabled(False)
         self._input.setEnabled(False)
+        if self._progress_start:
+            self._progress_start()
         from rword.ui.ai_worker import AiWorker
 
         self._chat_worker = AiWorker(
@@ -93,6 +105,8 @@ class AiChatPanel(QDockWidget):
         self._chat_worker.finished_ok.connect(self._on_reply)
         self._chat_worker.finished_error.connect(self._on_chat_error)
         self._chat_worker.finished.connect(self._restore_input)
+        if self._progress_finish:
+            self._chat_worker.finished.connect(self._progress_finish)
         self._chat_worker.start()
 
     def _on_reply(self, reply: str) -> None:

@@ -44,6 +44,7 @@ class PageView(QScrollArea):
         editor.setParent(self._container)
         editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         editor.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        editor._outer_vbar = self.verticalScrollBar()
         editor.show()
         self.update_paper_color("#ffffff")
         self.setWidget(self._container)

@@ -1,4 +1,5 @@
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QMouseEvent, QPalette
 from PySide6.QtWidgets import QScrollArea
 
 
@@ -131,3 +132,142 @@ def test_split_window_uses_page_view(main_window):
             break
         parent = parent.parentWidget()
     assert inside_page
+
+
+def _mouse(t, x, y, btn, buttons):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    return QMouseEvent(
+        t, QPointF(x, y), btn, buttons, Qt.KeyboardModifier.NoModifier
+    )
+
+
+def test_drag_selection_auto_scroll(main_window):
+    import time
+
+    from PySide6.QtWidgets import QApplication
+
+    main_window.resize(1000, 700)
+    main_window.show()
+    editor = main_window._editor
+    editor.setPlainText(
+        "\n".join(f"Línea {i} con texto de ejemplo" for i in range(300))
+    )
+    main_window._page_view._relayout()
+    QApplication.processEvents()
+    bar = main_window._page_view.verticalScrollBar()
+    assert bar.maximum() > 0
+    viewport = editor.viewport()
+
+    editor.mousePressEvent(
+        _mouse(QMouseEvent.Type.MouseButtonPress, 60, 20,
+               Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton)
+    )
+    editor.mouseMoveEvent(
+        _mouse(QMouseEvent.Type.MouseMove, 60, viewport.height() - 5,
+               Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton)
+    )
+    end = time.time() + 1.5
+    while time.time() < end:
+        QApplication.processEvents()
+        if bar.value() > 200:
+            break
+        time.sleep(0.02)
+    assert bar.value() > 200
+    assert (
+        editor.textCursor().selectionEnd() - editor.textCursor().selectionStart()
+        > 500
+    )
+    editor.mouseReleaseEvent(
+        _mouse(QMouseEvent.Type.MouseButtonRelease, 60, viewport.height() - 5,
+               Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton)
+    )
+    main_window.close()
+
+
+def test_drag_scrolls_back_up(main_window):
+    import time
+
+    from PySide6.QtWidgets import QApplication
+
+    main_window.resize(1000, 700)
+    main_window.show()
+    editor = main_window._editor
+    editor.setPlainText(
+        "\n".join(f"Línea {i} con texto de ejemplo" for i in range(300))
+    )
+    main_window._page_view._relayout()
+    QApplication.processEvents()
+    bar = main_window._page_view.verticalScrollBar()
+    bar.setValue(bar.maximum())
+    viewport = editor.viewport()
+
+    editor.mousePressEvent(
+        _mouse(QMouseEvent.Type.MouseButtonPress, 60, viewport.height() - 5,
+               Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton)
+    )
+    editor.mouseMoveEvent(
+        _mouse(QMouseEvent.Type.MouseMove, 60, 5,
+               Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton)
+    )
+    end = time.time() + 1.5
+    while time.time() < end:
+        QApplication.processEvents()
+        if bar.value() < bar.maximum() - 200:
+            break
+        time.sleep(0.02)
+    assert bar.value() < bar.maximum() - 200
+    editor.mouseReleaseEvent(
+        _mouse(QMouseEvent.Type.MouseButtonRelease, 60, 5,
+               Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton)
+    )
+    main_window.close()
+
+
+def test_wheel_scrolls_page(main_window):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+
+    main_window.resize(1000, 700)
+    main_window.show()
+    editor = main_window._editor
+    editor.setPlainText("\n".join(f"Línea {i}" for i in range(200)))
+    main_window._page_view._relayout()
+    QApplication.processEvents()
+    bar = main_window._page_view.verticalScrollBar()
+    before = bar.value()
+    wheel = QWheelEvent(
+        QPointF(50, 50), QPointF(50, 50), QPoint(0, 0), QPoint(0, -120),
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.NoScrollPhase, False,
+    )
+    editor.wheelEvent(wheel)
+    QApplication.processEvents()
+    assert bar.value() > before
+    main_window.close()
+
+
+def test_simple_click_places_cursor(main_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    main_window.resize(1000, 700)
+    main_window.show()
+    editor = main_window._editor
+    editor.setPlainText("palabra uno dos")
+    main_window._page_view._relayout()
+    QApplication.processEvents()
+
+    editor.mousePressEvent(
+        _mouse(QMouseEvent.Type.MouseButtonPress, 60, 30,
+               Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton)
+    )
+    editor.mouseReleaseEvent(
+        _mouse(QMouseEvent.Type.MouseButtonRelease, 60, 30,
+               Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton)
+    )
+    QApplication.processEvents()
+    assert not editor.textCursor().hasSelection()
+    main_window.close()
