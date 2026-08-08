@@ -1141,6 +1141,56 @@ class MainWindow(QMainWindow):
         self.ai_chat_panel_action.setCheckable(True)
         self.ai_chat_panel_action.triggered.connect(self._toggle_ai_chat)
 
+        self._ai_specialized = {}
+        for menu_name, items in {
+            "&Legal": [
+                ("Redactar contrato...", "draft_contract",
+                    "Instrucción del contrato:", "prompt_context"),
+                ("Revisar cláusulas abusivas", "review_clauses", None, "context"),
+                ("Detectar riesgos legales", "legal_risks", None, "context"),
+                ("Explicar artículo...", "explain_law", "Artículo o norma:", "prompt"),
+                ("Comparar contratos...", "compare_contracts",
+                    "Texto del segundo contrato:", "prompt_compare"),
+                ("Resumir contrato", "summarize_contract", None, "context"),
+            ],
+            "&Programación": [
+                ("Formatear código", "format_code", None, "context"),
+                ("Explicar código", "explain_code", None, "context"),
+                ("Generar código...", "generate_code", "Descripción del código:", "prompt"),
+                ("Convertir lenguaje...", "convert_language",
+                    "Lenguaje destino:", "prompt_context"),
+                ("Documentar función", "document_function", None, "context"),
+                ("Detectar errores", "detect_code_errors", None, "context"),
+                ("Optimizar código", "optimize_code", None, "context"),
+                ("Crear consulta SQL...", "sql_query", "Descripción de la consulta:", "prompt"),
+            ],
+            "&Educación": [
+                ("Explicar concepto...", "explain_concept", "Concepto:", "prompt"),
+                ("Generar ejercicios...", "generate_exercises", "Tema:", "prompt_count"),
+                ("Resolver problema...", "solve_problem", "Problema:", "prompt"),
+                ("Crear cuestionario...", "create_quiz", "Tema:", "prompt_count"),
+                ("Crear tarjetas de repaso...", "create_flashcards", "Tema:", "prompt_count"),
+            ],
+            "&Negocios": [
+                ("Propuesta comercial...", "write_proposal", "Descripción:", "prompt"),
+                ("Correo profesional...", "write_email", "Situación:", "prompt"),
+                ("Minuta de reunión", "meeting_minutes", None, "context"),
+                ("Reporte ejecutivo", "executive_report", None, "context"),
+            ],
+            "&Investigación": [
+                ("Investigar tema...", "research", "Tema:", "prompt"),
+                ("Generar bibliografía", "generate_bibliography", None, "context"),
+            ],
+        }.items():
+            submenu_actions = {}
+            for label, function, prompt, style in items:
+                action = QAction(label, self)
+                action.triggered.connect(
+                    lambda checked=False, f=function, p=prompt, s=style: self._ai_domain(f, p, s)
+                )
+                submenu_actions[label] = action
+            self._ai_specialized[menu_name] = submenu_actions
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1548,6 +1598,10 @@ class MainWindow(QMainWindow):
         selection_menu.addAction(self.ai_selection_questions_action)
         ai_menu.addSeparator()
         ai_menu.addAction(self.ai_chat_panel_action)
+        for menu_name, submenu_actions in self._ai_specialized.items():
+            domain_menu = ai_menu.addMenu(menu_name)
+            for action in submenu_actions.values():
+                domain_menu.addAction(action)
         self.ai_menu = ai_menu
 
         view_menu = self.menuBar().addMenu("&Ver")
@@ -3399,6 +3453,42 @@ class MainWindow(QMainWindow):
                 Qt.DockWidgetArea.RightDockWidgetArea, self._ai_chat_panel
             )
         self._ai_chat_panel.setVisible(checked)
+
+    def _ai_domain(self, function: str, prompt_label: str | None, style: str) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.ai import capabilities
+        from rword.core.ai.session import document_context
+
+        client = self._ai_client()
+        context = document_context(self._editor)
+        fn = getattr(capabilities, function)
+
+        if style == "context":
+            self._ai_run_and_apply(lambda c=context: fn(client, c))
+            return
+
+        value, ok = QInputDialog.getText(self, "IA", prompt_label or "Instrucción:")
+        if not ok or not value.strip():
+            return
+        value = value.strip()
+
+        if style == "prompt":
+            self._ai_run_and_apply(lambda v=value: fn(client, v))
+        elif style == "prompt_context":
+            self._ai_run_and_apply(lambda v=value, c=context: fn(client, v, c))
+        elif style == "prompt_compare":
+            self._ai_run_and_apply(
+                lambda v=value, c=context: fn(client, c, v)
+            )
+        elif style == "prompt_count":
+            count, ok = QInputDialog.getInt(
+                self, "IA", "Cantidad:", 5, 1, 50
+            )
+            if ok:
+                self._ai_run_and_apply(
+                    lambda v=value, n=count: fn(client, v, n)
+                )
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:

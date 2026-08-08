@@ -35,7 +35,7 @@ PySide6 (Qt for Python).
 | 26 | **IA — Escritura y corrección** | Redactar/continuar, resumir, reescribir, tono, expandir/reducir, ortografía/gramática avanzada, redundancias | ✅ Implementada |
 | 27 | **IA — Traducción y análisis** | Traducir documento/selección (con formato), detección de idioma, ideas, conclusiones, legibilidad, público | ✅ Implementada |
 | 28 | **IA — Selección y chat** | Preguntas sobre selección, chat contextual sobre el documento ("pregúntale al documento") | ✅ Implementada |
-| 29 | **IA — Dominios especializados** | Legal, programación, educación, negocios, investigación (bibliografía), comparación de documentos | Pendiente |
+| 29 | **IA — Dominios especializados** | Legal, programación, educación, negocios, investigación (bibliografía), comparación de documentos | ✅ Implementada |
 | 30 | **IA — Automatización y productividad** | Índices, tablas/listas, Mermaid, JSON/XML/YAML, detección de fechas/personas/datos, marketing, tareas | Pendiente |
 | 31 | **IA — Premium y pulido final** | Agentes especializados, estilo del usuario, OCR, extracción PDF, generación de imágenes, "escribir como", inspector de coherencia, anexos | Pendiente |
 

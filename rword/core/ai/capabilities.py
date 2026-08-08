@@ -221,3 +221,156 @@ def answer_question(client, document: str, question: str) -> str:
         document,
         temperature=0.3,
     )
+
+
+# --- Dominios especializados: Legal ----------------------------------------
+
+def draft_contract(client, instruction: str, context: str = "") -> str:
+    return _chat(
+        client,
+        f"Redacta un contrato profesional a partir de la instrucción: {instruction}",
+        context,
+    )
+
+
+def review_clauses(client, contract_text: str) -> str:
+    return _chat(
+        client,
+        "Revisa el contrato y detecta cláusulas abusivas o riesgos legales. "
+        "Devuelve una lista con recomendaciones.",
+        contract_text,
+        temperature=0.2,
+    )
+
+
+def legal_risks(client, contract_text: str) -> str:
+    return _chat(
+        client,
+        "Identifica los riesgos legales del siguiente contrato:",
+        contract_text,
+        temperature=0.2,
+    )
+
+
+def explain_law(client, article: str) -> str:
+    return _chat(client, "Explica en términos sencillos el siguiente artículo o norma:", article)
+
+
+def compare_contracts(client, text_a: str, text_b: str) -> str:
+    return _chat(
+        client,
+        "Compara los dos contratos, resume las diferencias importantes "
+        "y sugiere un documento unificado.",
+        f"Contrato A:\n{text_a}\n\nContrato B:\n{text_b}",
+        temperature=0.2,
+    )
+
+
+def summarize_contract(client, contract_text: str) -> str:
+    return _chat(
+        client,
+        "Resume el contrato destacando las obligaciones de cada parte:",
+        contract_text,
+    )
+
+
+# --- Programación ----------------------------------------------------------
+
+def format_code(client, code: str) -> str:
+    return _chat(
+        client,
+        "Formatea el siguiente código con un estilo limpio:",
+        code,
+        temperature=0.2,
+    )
+
+
+def explain_code(client, code: str) -> str:
+    return _chat(client, "Explica qué hace el siguiente código:", code)
+
+
+def generate_code(client, instruction: str) -> str:
+    return _chat(client, f"Genera el código necesario para: {instruction}", temperature=0.3)
+
+
+def convert_language(client, code: str, target: str) -> str:
+    return _chat(client, f"Convierte el siguiente código a {target}:", code, temperature=0.2)
+
+
+def document_function(client, code: str) -> str:
+    return _chat(client, "Documenta la siguiente función con comentarios y docstring:", code)
+
+
+def detect_code_errors(client, code: str) -> str:
+    return _chat(client, "Detecta errores y sugiere correcciones en el siguiente código:", code)
+
+
+def optimize_code(client, code: str) -> str:
+    return _chat(client, "Optimiza el siguiente código para mejorar su rendimiento:", code)
+
+
+def sql_query(client, instruction: str) -> str:
+    return _chat(client, f"Escribe una consulta SQL para: {instruction}", temperature=0.2)
+
+
+# --- Educación --------------------------------------------------------------
+
+def explain_concept(client, concept: str) -> str:
+    return _chat(client, "Explica el siguiente concepto de forma clara y con ejemplos:", concept)
+
+
+def generate_exercises(client, topic: str, count: int = 5) -> str:
+    return _chat(
+        client, f"Genera {count} ejercicios sobre: {topic}", temperature=0.4
+    )
+
+
+def solve_problem(client, problem: str) -> str:
+    return _chat(client, "Resuelve el siguiente problema paso a paso:", problem)
+
+
+def create_quiz(client, topic: str, count: int = 5) -> str:
+    return _chat(
+        client, f"Crea un cuestionario de {count} preguntas sobre: {topic}",
+        temperature=0.4,
+    )
+
+
+def create_flashcards(client, topic: str, count: int = 10) -> str:
+    return _chat(
+        client,
+        f"Crea {count} tarjetas de repaso (pregunta/respuesta) sobre: {topic}",
+        temperature=0.4,
+    )
+
+
+# --- Negocios ---------------------------------------------------------------
+
+def write_proposal(client, instruction: str) -> str:
+    return _chat(client, f"Redacta una propuesta comercial profesional para: {instruction}")
+
+
+def write_email(client, instruction: str) -> str:
+    return _chat(client, f"Redacta un correo electrónico profesional para: {instruction}")
+
+
+def meeting_minutes(client, text: str) -> str:
+    return _chat(client, "Genera una minuta de reunión a partir de las notas:", text)
+
+
+def executive_report(client, text: str) -> str:
+    return _chat(client, "Genera un reporte ejecutivo a partir de los datos:", text)
+
+
+# --- Investigación ----------------------------------------------------------
+
+def research(client, query: str) -> str:
+    return _chat(client, f"Investiga sobre el tema y sintetiza la información: {query}")
+
+
+def generate_bibliography(client, text: str) -> str:
+    return _chat(
+        client,
+        "Genera una bibliografía en formato académico a partir del texto:",
+        text,
+    )
