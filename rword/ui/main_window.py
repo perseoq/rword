@@ -819,6 +819,34 @@ class MainWindow(QMainWindow):
         self.new_window_action = QAction("Nueva ventana", self)
         self.new_window_action.triggered.connect(self._new_window)
 
+        self.checkbox_action = QAction("Casilla de verificación", self)
+        self.checkbox_action.triggered.connect(self._insert_checkbox)
+
+        self.radio_action = QAction("Botón de opción", self)
+        self.radio_action.triggered.connect(self._insert_radio)
+
+        self.dropdown_action = QAction("Lista desplegable...", self)
+        self.dropdown_action.triggered.connect(self._insert_dropdown)
+
+        self.date_field_action = QAction("Selector de fecha", self)
+        self.date_field_action.triggered.connect(self._insert_date_field)
+
+        self.text_field_action = QAction("Campo de texto", self)
+        self.text_field_action.triggered.connect(self._insert_text_field)
+
+        self.number_field_action = QAction("Campo numérico", self)
+        self.number_field_action.triggered.connect(self._insert_number_field)
+
+        self.hidden_field_action = QAction("Campo oculto", self)
+        self.hidden_field_action.triggered.connect(self._insert_hidden_field)
+
+        self.protect_form_action = QAction("Proteger formulario", self)
+        self.protect_form_action.setCheckable(True)
+        self.protect_form_action.triggered.connect(self._toggle_protect_form)
+
+        self.reset_form_action = QAction("Restablecer formulario", self)
+        self.reset_form_action.triggered.connect(self._reset_form)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1107,6 +1135,18 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self.translate_action)
         tools_menu.addSeparator()
         tools_menu.addAction(self.count_action)
+
+        forms_menu = self.menuBar().addMenu("&Formularios")
+        forms_menu.addAction(self.checkbox_action)
+        forms_menu.addAction(self.radio_action)
+        forms_menu.addAction(self.dropdown_action)
+        forms_menu.addAction(self.date_field_action)
+        forms_menu.addAction(self.text_field_action)
+        forms_menu.addAction(self.number_field_action)
+        forms_menu.addAction(self.hidden_field_action)
+        forms_menu.addSeparator()
+        forms_menu.addAction(self.protect_form_action)
+        forms_menu.addAction(self.reset_form_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
@@ -2033,6 +2073,61 @@ class MainWindow(QMainWindow):
         window = MainWindow()
         window._editor.setDocument(self._editor.document())
         window.show()
+
+    def _insert_checkbox(self) -> None:
+        from rword.core.forms import insert_checkbox
+
+        insert_checkbox(self._editor)
+
+    def _insert_radio(self) -> None:
+        from rword.core.forms import insert_radio
+
+        insert_radio(self._editor)
+
+    def _insert_dropdown(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.forms import insert_dropdown
+
+        text, ok = QInputDialog.getText(
+            self, "Lista desplegable", "Opciones separadas por coma:"
+        )
+        if ok:
+            options = [opt.strip() for opt in text.split(",") if opt.strip()]
+            if options:
+                insert_dropdown(self._editor, options)
+            else:
+                self._show_error("Introduzca al menos una opción.")
+
+    def _insert_date_field(self) -> None:
+        from rword.core.forms import insert_date_field
+
+        insert_date_field(self._editor)
+
+    def _insert_text_field(self) -> None:
+        from rword.core.forms import insert_text_field
+
+        insert_text_field(self._editor)
+
+    def _insert_number_field(self) -> None:
+        from rword.core.forms import insert_number_field
+
+        insert_number_field(self._editor)
+
+    def _insert_hidden_field(self) -> None:
+        from rword.core.forms import insert_hidden_field
+
+        insert_hidden_field(self._editor)
+
+    def _toggle_protect_form(self, checked: bool) -> None:
+        from rword.core.forms import protect_form
+
+        protect_form(self._editor, checked)
+
+    def _reset_form(self) -> None:
+        from rword.core.forms import reset_form
+
+        reset_form(self._editor)
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:

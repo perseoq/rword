@@ -98,6 +98,13 @@ class Editor(QTextEdit):
         return self._drawing_enabled
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        if self.isReadOnly():
+            position = self.cursorForPosition(event.position().toPoint()).position()
+            from rword.core.forms import field_at, handle_field_click
+
+            if field_at(self, position) is not None:
+                handle_field_click(self, position)
+                return
         if self._drawing_enabled and event.button() == Qt.MouseButton.LeftButton:
             self._draw_active = True
             self._draw_last = event.position()
