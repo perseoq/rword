@@ -27,6 +27,7 @@ from rword.config import (
     ALL_FILES_FILTER,
     APP_NAME,
     APP_VERSION,
+    DOCX_FILTER,
     HTML_FILTER,
     RIBBON_VISIBLE_KEY,
     STATUSBAR_VISIBLE_KEY,
@@ -85,7 +86,9 @@ from rword.ui.navigation_panel import NavigationPanel
 from rword.ui.paragraph_bar import ParagraphBar
 from rword.ui.ribbon import RibbonBar
 
-FILE_DIALOG_FILTER = f"{TEXT_FILTER};;{HTML_FILTER};;{ALL_FILES_FILTER}"
+FILE_DIALOG_FILTER = (
+    f"{DOCX_FILTER};;{TEXT_FILTER};;{HTML_FILTER};;{ALL_FILES_FILTER}"
+)
 
 
 class MainWindow(QMainWindow):
@@ -1973,7 +1976,9 @@ class MainWindow(QMainWindow):
             return
         path = Path(file_name)
         if path.suffix == "":
-            if HTML_FILTER in selected_filter:
+            if DOCX_FILTER in selected_filter:
+                path = path.with_suffix(".docx")
+            elif HTML_FILTER in selected_filter:
                 path = path.with_suffix(".html")
             else:
                 path = path.with_suffix(".txt")
@@ -2000,7 +2005,7 @@ class MainWindow(QMainWindow):
     def _suggested_name(self) -> str:
         if self._editor.file_path is not None:
             return self._editor.file_path.name
-        return f"Sin título {self._untitled_counter}.txt"
+        return f"Sin título {self._untitled_counter}.docx"
 
     def _confirm_save_before_closing(self) -> bool:
         if not self._editor.document().isModified():

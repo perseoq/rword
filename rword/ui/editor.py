@@ -16,7 +16,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QTextEdit
 
-from rword.config import HTML_EXTENSIONS
+from rword.config import DOCX_EXTENSIONS, HTML_EXTENSIONS
 
 _LINE_NUMBER_WIDTH = 36
 _WATERMARK_COLOR = QColor(180, 180, 180, 80)
@@ -339,8 +339,16 @@ class Editor(QTextEdit):
 
     def load_file(self, path: Path) -> None:
         """Carga el contenido de un archivo en el editor."""
+        suffix = path.suffix.lower()
+        if suffix in DOCX_EXTENSIONS:
+            from rword.core.docx_io import load_docx
+
+            load_docx(self, path)
+            self._file_path = path
+            self.document().setModified(False)
+            return
         content = path.read_text(encoding="utf-8")
-        if path.suffix.lower() in HTML_EXTENSIONS:
+        if suffix in HTML_EXTENSIONS:
             self.setHtml(content)
         else:
             self.setPlainText(content)
@@ -349,9 +357,17 @@ class Editor(QTextEdit):
 
     def save_file(self, path: Path) -> None:
         """Guarda el contenido del editor en un archivo."""
+        suffix = path.suffix.lower()
+        if suffix in DOCX_EXTENSIONS:
+            from rword.core.docx_io import save_docx
+
+            save_docx(self, path)
+            self._file_path = path
+            self.document().setModified(False)
+            return
         content = (
             self.toHtml()
-            if path.suffix.lower() in HTML_EXTENSIONS
+            if suffix in HTML_EXTENSIONS
             else self.toPlainText()
         )
         path.write_text(content, encoding="utf-8")

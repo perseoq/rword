@@ -14,11 +14,13 @@ STATUSBAR_VISIBLE_KEY = "ui/statusbar_visible"
 
 TEXT_FILTER = "Documentos de texto (*.txt *.md *.rst *.log)"
 HTML_FILTER = "Documentos HTML (*.html *.htm)"
+DOCX_FILTER = "Documento de Word (*.docx)"
 ALL_FILES_FILTER = "Todos los archivos (*)"
 
 HTML_EXTENSIONS = {".html", ".htm"}
 TEXT_EXTENSIONS = {".txt", ".md", ".rst", ".log"}
-SUPPORTED_EXTENSIONS = HTML_EXTENSIONS | TEXT_EXTENSIONS
+DOCX_EXTENSIONS = {".docx"}
+SUPPORTED_EXTENSIONS = HTML_EXTENSIONS | TEXT_EXTENSIONS | DOCX_EXTENSIONS
 
 PARAGRAPH_SEPARATOR = "\u2029"
 LINE_SEPARATOR = "\u2028"

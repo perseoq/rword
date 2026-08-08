@@ -37,6 +37,9 @@ el commit correspondiente cuando queda terminado y validado.
 - [x] Integración en `main_window.py`: toggle único «Cinta de opciones»,
       modo lectura/enfoque inmersivo, plugin hook `add_ribbon_action`,
       `RIBBON_VISIBLE_KEY` y tests.
+- [x] **Soporte de formato .docx** (Word) como formato por defecto: abrir y
+      guardar con `python-docx` (texto con formato, listas, tablas e
+      imágenes), filtro por defecto en Archivo y nombre sugerido `.docx`.
 
 ## v0.3.0 — Futuro (pendientes)
 
