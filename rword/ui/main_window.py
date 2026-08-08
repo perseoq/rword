@@ -1901,6 +1901,9 @@ class MainWindow(QMainWindow):
         self._untitled_counter += 1
         self._editor.clear()
         self._editor.set_file_path(None)
+        apply_page_setup(self._editor, current_page_setup(self._editor))
+        self._editor.document().setModified(False)
+        self._page_view.refresh()
         self._update_title()
         self._update_statusbar()
         self._log_activity("Nuevo documento")
