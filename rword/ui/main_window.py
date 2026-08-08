@@ -879,6 +879,25 @@ class MainWindow(QMainWindow):
         self.remove_personal_action = QAction("Eliminar información personal", self)
         self.remove_personal_action.triggered.connect(self._remove_personal_info)
 
+        self.record_macro_action = QAction("Grabar macro", self)
+        self.record_macro_action.triggered.connect(self._record_macro)
+
+        self.stop_recording_action = QAction("Detener grabación", self)
+        self.stop_recording_action.triggered.connect(self._stop_recording)
+
+        self.manage_macros_action = QAction("Administrar macros...", self)
+        self.manage_macros_action.triggered.connect(self._manage_macros)
+
+        self.assign_shortcut_action = QAction("Asignar macro a teclado...", self)
+        self.assign_shortcut_action.triggered.connect(self._assign_macro_shortcut)
+
+        self.variables_action = QAction("Variables de documento...", self)
+        self.variables_action.triggered.connect(self._edit_variables)
+
+        self._macro_manager = None
+        self._macro_recorder = None
+        self._macro_shortcut_actions: list = []
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1194,6 +1213,16 @@ class MainWindow(QMainWindow):
         security_menu.addSeparator()
         security_menu.addAction(self.inspect_action)
         security_menu.addAction(self.remove_personal_action)
+
+        automation_menu = self.menuBar().addMenu("&Automatización")
+        automation_menu.addAction(self.record_macro_action)
+        automation_menu.addAction(self.stop_recording_action)
+        automation_menu.addAction(self.manage_macros_action)
+        automation_menu.addAction(self.assign_shortcut_action)
+        automation_menu.addSeparator()
+        automation_menu.addAction(self.variables_action)
+        self.automation_menu = automation_menu
+        automation_menu.aboutToShow.connect(self._rebuild_macro_shortcuts)
 
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
@@ -2321,6 +2350,143 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"Se eliminaron {count} elementos de información personal.", 5000
         )
+
+    def _macro_manager_instance(self):
+        from rword.core.macros import MacroManager
+
+        if self._macro_manager is None:
+            self._macro_manager = MacroManager(self._settings)
+        return self._macro_manager
+
+    def _record_macro(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.macros import MacroRecorder
+
+        name, ok = QInputDialog.getText(self, "Grabar macro", "Nombre de la macro:")
+        if not ok or not name.strip():
+            return
+        self._macro_recorder = MacroRecorder()
+        self._editor.set_macro_recorder(self._macro_recorder)
+        self._recording_name = name
+        self.record_macro_action.setEnabled(False)
+        self.stop_recording_action.setEnabled(True)
+        self.statusBar().showMessage("Grabando macro...", 0)
+
+    def _stop_recording(self) -> None:
+        self._editor.set_macro_recorder(None)
+        self.record_macro_action.setEnabled(True)
+        self.stop_recording_action.setEnabled(False)
+        if self._macro_recorder is not None:
+            manager = self._macro_manager_instance()
+            manager.add(self._recording_name, self._macro_recorder.script())
+            self._macro_recorder = None
+        self.statusBar().showMessage("Grabación finalizada.", 3000)
+
+    def _manage_macros(self) -> None:
+        from rword.ui.dialogs.macro import MacroDialog
+
+        dialog = MacroDialog(self._macro_manager_instance(), self._editor, self)
+        dialog.exec()
+
+    def _assign_macro_shortcut(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        manager = self._macro_manager_instance()
+        names = sorted(manager.names())
+        if not names:
+            self._show_error("No hay macros definidas.")
+            return
+        name, ok = QInputDialog.getItem(
+            self, "Asignar macro a teclado", "Macro:", names, 0, False
+        )
+        if not ok:
+            return
+        shortcut, ok = QInputDialog.getText(
+            self, "Asignar macro a teclado",
+            "Atajo (p. ej. Ctrl+Shift+M):",
+            text=manager.shortcuts().get(name, ""),
+        )
+        if ok:
+            manager.assign_shortcut(name, shortcut)
+
+    def _rebuild_macro_shortcuts(self) -> None:
+        menu = self.automation_menu
+        for action in self._macro_shortcut_actions:
+            menu.removeAction(action)
+        self._macro_shortcut_actions = []
+        manager = self._macro_manager_instance()
+        for name, shortcut in manager.shortcuts().items():
+            if not shortcut or name not in manager.names():
+                continue
+            action = QAction(f"Ejecutar: {name}", self)
+            action.setShortcut(shortcut)
+            action.triggered.connect(
+                lambda checked=False, n=name: manager.run(self._editor, n)
+            )
+            menu.addAction(action)
+            self._macro_shortcut_actions.append(action)
+
+    def _edit_variables(self) -> None:
+        from PySide6.QtWidgets import (
+            QDialog,
+            QDialogButtonBox,
+            QHBoxLayout,
+            QLineEdit,
+            QListWidget,
+            QPushButton,
+            QVBoxLayout,
+        )
+
+        from rword.core.macros import (
+            document_variables,
+        )
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Variables de documento")
+        layout = QVBoxLayout(dialog)
+        var_list = QListWidget(dialog)
+        var_list.addItems(sorted(document_variables(self._editor)))
+        layout.addWidget(var_list)
+        row = QHBoxLayout()
+        name_input = QLineEdit(dialog)
+        name_input.setPlaceholderText("Nombre")
+        value_input = QLineEdit(dialog)
+        value_input.setPlaceholderText("Valor")
+        row.addWidget(name_input)
+        row.addWidget(value_input)
+        layout.addLayout(row)
+        add_button = QPushButton("Añadir/Actualizar", dialog)
+        add_button.clicked.connect(
+            lambda: self._add_variable(
+                dialog, name_input, value_input, var_list
+            )
+        )
+        remove_button = QPushButton("Eliminar", dialog)
+        remove_button.clicked.connect(
+            lambda: self._remove_variable(dialog, var_list)
+        )
+        layout.addWidget(add_button)
+        layout.addWidget(remove_button)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.exec()
+
+    def _add_variable(self, dialog, name_input, value_input, var_list) -> None:
+        from rword.core.macros import document_variables, set_variable
+
+        if name_input.text().strip():
+            set_variable(self._editor, name_input.text().strip(), value_input.text())
+            var_list.clear()
+            var_list.addItems(sorted(document_variables(self._editor)))
+
+    def _remove_variable(self, dialog, var_list) -> None:
+        from rword.core.macros import remove_variable
+
+        item = var_list.currentItem()
+        if item is not None and remove_variable(self._editor, item.text()):
+            var_list.takeItem(var_list.row(item))
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:

@@ -49,6 +49,13 @@ class Editor(QTextEdit):
         self._grid_visible = False
         self._view_mode = "print"
         self._zoom_percent = 100
+        self._macro_recorder = None
+
+    def set_macro_recorder(self, recorder) -> None:
+        self._macro_recorder = recorder
+
+    def macro_recorder(self):
+        return self._macro_recorder
 
     def set_zoom(self, percent: int) -> None:
         target = max(20, min(500, percent))
@@ -173,6 +180,8 @@ class Editor(QTextEdit):
         self._draw_last = None
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self._macro_recorder is not None:
+            self._macro_recorder.key_pressed(event)
         if not self._track_changes:
             super().keyPressEvent(event)
             return

@@ -26,7 +26,7 @@ PySide6 (Qt for Python).
 | 17 | **Impresión y exportación** | Vista previa, imprimir (rangos/doble cara/por hoja), exportar PDF/HTML/ODT/RTF/TXT/EPUB | ✅ Implementada |
 | 18 | **Formularios** | Casillas, botones, listas, campos de texto/número/fecha, protección de formulario | ✅ Implementada |
 | 19 | **Seguridad** | Solo lectura, contraseñas, restricciones, firmas digitales, inspección, marcar como final | ✅ Implementada |
-| 20 | **Automatización y macros** | Grabar/editar/ejecutar macros, asignar a botón/teclado, campos automáticos | Pendiente |
+| 20 | **Automatización y macros** | Grabar/editar/ejecutar macros, asignar a botón/teclado, campos automáticos | ✅ Implementada |
 | 21 | **Combinación de correspondencia** | Origen de datos, campos, vista previa, filtros, cartas/etiquetas/sobres | Pendiente |
 | 22 | **Colaboración** | Edición colaborativa, compartir, presencia, historial, permisos, resolución de conflictos | Pendiente |
 | 23 | **Accesibilidad** | Comprobador, texto alternativo, teclado, lectores de pantalla, dictado, lectura en voz alta | Pendiente |
