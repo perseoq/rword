@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QTextCursor
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QFont, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
+    QColorDialog,
     QFileDialog,
+    QFontDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -19,6 +21,7 @@ from rword.config import (
     ALL_FILES_FILTER,
     APP_NAME,
     APP_VERSION,
+    FORMATBAR_VISIBLE_KEY,
     HTML_FILTER,
     STATUSBAR_VISIBLE_KEY,
     TEXT_FILTER,
@@ -26,10 +29,12 @@ from rword.config import (
     WINDOW_GEOMETRY_KEY,
     WINDOW_STATE_KEY,
 )
+from rword.core import formatting
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
 from rword.ui.editor import Editor
+from rword.ui.format_bar import FormatBar
 
 FILE_DIALOG_FILTER = f"{TEXT_FILTER};;{HTML_FILTER};;{ALL_FILES_FILTER}"
 
@@ -54,7 +59,6 @@ class MainWindow(QMainWindow):
         self._connect_editor_signals()
         self._connect_clipboard()
         self._restore_settings()
-
     def _build_actions(self) -> None:
         self.new_action = QAction("Nuevo", self)
         self.new_action.setShortcut(QKeySequence.StandardKey.New)
@@ -139,10 +143,114 @@ class MainWindow(QMainWindow):
         self.clipboard_clear_action = QAction("Limpiar historial", self)
         self.clipboard_clear_action.triggered.connect(self._clear_clipboard)
 
+        self.font_action = QAction("Fuente...", self)
+        self.font_action.triggered.connect(self._choose_font)
+
+        self.bold_action = QAction("Negrita", self)
+        self.bold_action.setShortcut(QKeySequence.StandardKey.Bold)
+        self.bold_action.triggered.connect(
+            lambda: formatting.toggle_bold(self._editor)
+        )
+
+        self.italic_action = QAction("Cursiva", self)
+        self.italic_action.setShortcut(QKeySequence.StandardKey.Italic)
+        self.italic_action.triggered.connect(
+            lambda: formatting.toggle_italic(self._editor)
+        )
+
+        self.underline_action = QAction("Subrayado", self)
+        self.underline_action.setShortcut(QKeySequence.StandardKey.Underline)
+        self.underline_action.triggered.connect(
+            lambda: formatting.toggle_underline(self._editor)
+        )
+
+        self.strike_action = QAction("Tachado", self)
+        self.strike_action.triggered.connect(
+            lambda: formatting.toggle_strikeout(self._editor)
+        )
+
+        self.superscript_action = QAction("Superíndice", self)
+        self.superscript_action.triggered.connect(
+            lambda: formatting.toggle_superscript(self._editor)
+        )
+
+        self.subscript_action = QAction("Subíndice", self)
+        self.subscript_action.triggered.connect(
+            lambda: formatting.toggle_subscript(self._editor)
+        )
+
+        self.grow_font_action = QAction("Aumentar tamaño", self)
+        self.grow_font_action.setShortcut("Ctrl+Shift+>")
+        self.grow_font_action.triggered.connect(
+            lambda: formatting.change_font_size(self._editor, 1.0)
+        )
+
+        self.shrink_font_action = QAction("Disminuir tamaño", self)
+        self.shrink_font_action.setShortcut("Ctrl+Shift+<")
+        self.shrink_font_action.triggered.connect(
+            lambda: formatting.change_font_size(self._editor, -1.0)
+        )
+
+        self.text_color_action = QAction("Color de texto...", self)
+        self.text_color_action.triggered.connect(self._choose_text_color)
+
+        self.highlight_action = QAction("Resaltado...", self)
+        self.highlight_action.triggered.connect(self._choose_highlight)
+
+        self.letter_spacing_normal_action = QAction("Espaciado normal", self)
+        self.letter_spacing_normal_action.triggered.connect(
+            lambda: formatting.set_letter_spacing(self._editor, 100)
+        )
+
+        self.letter_spacing_more_action = QAction("Aumentar espaciado", self)
+        self.letter_spacing_more_action.triggered.connect(
+            lambda: formatting.set_letter_spacing(self._editor, 120)
+        )
+
+        self.letter_spacing_less_action = QAction("Reducir espaciado", self)
+        self.letter_spacing_less_action.triggered.connect(
+            lambda: formatting.set_letter_spacing(self._editor, 80)
+        )
+
+        self.clear_format_action = QAction("Borrar formato", self)
+        self.clear_format_action.triggered.connect(
+            lambda: formatting.clear_formatting(self._editor)
+        )
+
+        self.case_sentence_action = QAction("Tipo oración", self)
+        self.case_sentence_action.triggered.connect(
+            lambda: formatting.apply_case(self._editor, "sentence")
+        )
+
+        self.case_lower_action = QAction("minúsculas", self)
+        self.case_lower_action.triggered.connect(
+            lambda: formatting.apply_case(self._editor, "lower")
+        )
+
+        self.case_upper_action = QAction("MAYÚSCULAS", self)
+        self.case_upper_action.triggered.connect(
+            lambda: formatting.apply_case(self._editor, "upper")
+        )
+
+        self.case_title_action = QAction("Tipo título", self)
+        self.case_title_action.triggered.connect(
+            lambda: formatting.apply_case(self._editor, "title")
+        )
+
+        self.case_toggle_action = QAction("Alternar mayúsculas", self)
+        self.case_toggle_action.triggered.connect(
+            lambda: formatting.apply_case(self._editor, "toggle")
+        )
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
         self.toggle_toolbar_action.triggered.connect(self._toggle_toolbar)
+
+        self.toggle_formatbar_action = QAction("Barra de formato", self)
+        self.toggle_formatbar_action.setCheckable(True)
+        self.toggle_formatbar_action.setChecked(True)
+        self.toggle_formatbar_action.triggered.connect(self._toggle_formatbar)
 
         self.toggle_statusbar_action = QAction("Barra de estado", self)
         self.toggle_statusbar_action.setCheckable(True)
@@ -185,8 +293,37 @@ class MainWindow(QMainWindow):
         select_menu.addAction(self.select_paragraph_action)
         select_menu.addAction(self.select_all_action)
 
+        format_menu = self.menuBar().addMenu("&Formato")
+        format_menu.addAction(self.font_action)
+        format_menu.addSeparator()
+        format_menu.addAction(self.bold_action)
+        format_menu.addAction(self.italic_action)
+        format_menu.addAction(self.underline_action)
+        format_menu.addAction(self.strike_action)
+        format_menu.addAction(self.superscript_action)
+        format_menu.addAction(self.subscript_action)
+        format_menu.addSeparator()
+        format_menu.addAction(self.grow_font_action)
+        format_menu.addAction(self.shrink_font_action)
+        format_menu.addSeparator()
+        format_menu.addAction(self.text_color_action)
+        format_menu.addAction(self.highlight_action)
+        spacing_menu = format_menu.addMenu("Espaciado entre &caracteres")
+        spacing_menu.addAction(self.letter_spacing_normal_action)
+        spacing_menu.addAction(self.letter_spacing_more_action)
+        spacing_menu.addAction(self.letter_spacing_less_action)
+        case_menu = format_menu.addMenu("&Mayúsculas")
+        case_menu.addAction(self.case_sentence_action)
+        case_menu.addAction(self.case_lower_action)
+        case_menu.addAction(self.case_upper_action)
+        case_menu.addAction(self.case_title_action)
+        case_menu.addAction(self.case_toggle_action)
+        format_menu.addSeparator()
+        format_menu.addAction(self.clear_format_action)
+
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
+        view_menu.addAction(self.toggle_formatbar_action)
         view_menu.addAction(self.toggle_statusbar_action)
 
         help_menu = self.menuBar().addMenu("&Ayuda")
@@ -207,6 +344,9 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.copy_action)
         self.toolbar.addAction(self.paste_action)
         self.addToolBar(self.toolbar)
+
+        self.format_bar = FormatBar(self._editor, self)
+        self.addToolBar(self.format_bar)
 
     def _build_statusbar(self) -> None:
         self.words_label = QLabel(self)
@@ -402,6 +542,32 @@ class MainWindow(QMainWindow):
     def _toggle_toolbar(self, checked: bool) -> None:
         self.toolbar.setVisible(checked)
 
+    def _toggle_formatbar(self, checked: bool) -> None:
+        self.format_bar.setVisible(checked)
+
+    def _choose_font(self) -> None:
+        current = self._editor.currentCharFormat()
+        family = current.fontFamilies()[0] if current.fontFamilies() else "Sans Serif"
+        size = current.fontPointSize() or 12
+        ok, font = QFontDialog.getFont(
+            QFont(family, int(size)), self, "Fuente"
+        )
+        if ok:
+            formatting.set_font_family(self._editor, font.family())
+            formatting.set_font_size(self._editor, font.pointSizeF())
+            if font.bold():
+                formatting.toggle_bold(self._editor)
+
+    def _choose_text_color(self) -> None:
+        color = QColorDialog.getColor(QColor("black"), self, "Color de texto")
+        if color.isValid():
+            formatting.set_text_color(self._editor, color)
+
+    def _choose_highlight(self) -> None:
+        color = QColorDialog.getColor(QColor("#ffff00"), self, "Color de resaltado")
+        if color.isValid():
+            formatting.set_highlight(self._editor, color)
+
     def _toggle_statusbar(self, checked: bool) -> None:
         self.statusBar().setVisible(checked)
 
@@ -428,6 +594,9 @@ class MainWindow(QMainWindow):
         toolbar_visible = self._settings.value(TOOLBAR_VISIBLE_KEY, True, type=bool)
         self.toolbar.setVisible(toolbar_visible)
         self.toggle_toolbar_action.setChecked(toolbar_visible)
+        formatbar_visible = self._settings.value(FORMATBAR_VISIBLE_KEY, True, type=bool)
+        self.format_bar.setVisible(formatbar_visible)
+        self.toggle_formatbar_action.setChecked(formatbar_visible)
         statusbar_visible = self._settings.value(
             STATUSBAR_VISIBLE_KEY, True, type=bool
         )
@@ -442,6 +611,9 @@ class MainWindow(QMainWindow):
         self._settings.setValue(WINDOW_STATE_KEY, self.saveState())
         self._settings.setValue(
             TOOLBAR_VISIBLE_KEY, self.toolbar.isVisible()
+        )
+        self._settings.setValue(
+            FORMATBAR_VISIBLE_KEY, self.format_bar.isVisible()
         )
         self._settings.setValue(
             STATUSBAR_VISIBLE_KEY, self.statusBar().isVisible()

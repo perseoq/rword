@@ -9,7 +9,7 @@ PySide6 (Qt for Python).
 |---|------|-------------------|--------|
 | 1 | **Base y arquitectura** | Ventana principal, menús, toolbar, editor, gestión de documentos (nuevo/abrir/guardar), barra de estado, preferencias | ✅ Implementada |
 | 2 | **Edición de texto** | Selección, cortar/copiar/pegar, portapapeles múltiple, buscar/reemplazar (avanzado), ir a página/sección/marcador, arrastrar y soltar | ✅ Implementada |
-| 3 | **Formato de fuente** | Fuente/tamaño, negrita/cursiva/subrayado/tachado, superíndice/subíndice, color/resaltado, mayúsculas, espaciado de caracteres, efectos | Pendiente |
+| 3 | **Formato de fuente** | Fuente/tamaño, negrita/cursiva/subrayado/tachado, superíndice/subíndice, color/resaltado, mayúsculas, espaciado de caracteres, efectos | ✅ Implementada |
 | 4 | **Formato de párrafo** | Alineación, sangrías, interlineado, espaciado, viñetas/numeración/multinivel, tabulaciones, bordes y sombreado, control de página | Pendiente |
 | 5 | **Estilos y temas** | Aplicar/crear/modificar/eliminar estilos, organizador, títulos, tema (colores/fuentes/efectos) | Pendiente |
 | 6 | **Diseño de página** | Márgenes, orientación, tamaño, columnas, saltos, fondo/marca de agua, numeración de líneas, guiones | Pendiente |
