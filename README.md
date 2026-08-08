@@ -35,6 +35,13 @@ configura en el menú **IA → Configurar clave de API**.
 
 ```bash
 python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt          # solo ejecución
+.venv/bin/pip install -r requirements-dev.txt      # ejecución + desarrollo
+```
+
+O bien, instalación en modo editable con las dependencias de desarrollo:
+
+```bash
 .venv/bin/pip install -e ".[dev]"
 ```
 
