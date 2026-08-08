@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent
+from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QTextEdit
 
 from rword.config import HTML_EXTENSIONS
@@ -17,6 +17,8 @@ _WATERMARK_COLOR = QColor(180, 180, 180, 80)
 class Editor(QTextEdit):
     """Área de edición con soporte de texto enriquecido y persistencia."""
 
+    link_clicked = Signal(str)
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAcceptRichText(True)
@@ -24,6 +26,14 @@ class Editor(QTextEdit):
         self._file_path: Path | None = None
         self._line_numbers_enabled = False
         self._watermark = ""
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            href = self.anchorAt(event.position().toPoint())
+            if href:
+                self.link_clicked.emit(href)
+                return
+        super().mouseReleaseEvent(event)
 
     @property
     def file_path(self) -> Path | None:

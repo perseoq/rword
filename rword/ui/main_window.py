@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QFont, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
@@ -47,6 +47,7 @@ from rword.ui.dialogs.style import StyleDialog
 from rword.ui.dialogs.style_organizer import StyleOrganizerDialog
 from rword.ui.editor import Editor
 from rword.ui.format_bar import FormatBar
+from rword.ui.navigation_panel import NavigationPanel
 from rword.ui.paragraph_bar import ParagraphBar
 
 FILE_DIALOG_FILTER = f"{TEXT_FILTER};;{HTML_FILTER};;{ALL_FILES_FILTER}"
@@ -69,6 +70,7 @@ class MainWindow(QMainWindow):
         self._style_manager = StyleManager(self._settings)
         self._theme_manager = ThemeManager(self._settings)
         self._format_painter = FormatPainter()
+        self._navigation_panel: NavigationPanel | None = None
         self.setCentralWidget(self._editor)
         self._build_actions()
         self._build_menus()
@@ -534,6 +536,28 @@ class MainWindow(QMainWindow):
             )
             self.shape_actions[key] = action
 
+        self.insert_hyperlink_action = QAction("Hipervínculo...", self)
+        self.insert_hyperlink_action.setShortcut("Ctrl+K")
+        self.insert_hyperlink_action.triggered.connect(self._insert_hyperlink)
+
+        self.remove_hyperlink_action = QAction("Eliminar hipervínculo", self)
+        self.remove_hyperlink_action.triggered.connect(self._remove_hyperlink)
+
+        self.add_bookmark_action = QAction("Marcador...", self)
+        self.add_bookmark_action.triggered.connect(self._add_bookmark)
+
+        self.go_to_bookmark_action = QAction("Ir a marcador...", self)
+        self.go_to_bookmark_action.triggered.connect(self._goto_bookmark)
+
+        self.delete_bookmark_action = QAction("Eliminar marcador...", self)
+        self.delete_bookmark_action.triggered.connect(self._delete_bookmark)
+
+        self.toggle_navigation_action = QAction("Panel de navegación", self)
+        self.toggle_navigation_action.setCheckable(True)
+        self.toggle_navigation_action.triggered.connect(
+            self._toggle_navigation_panel
+        )
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -732,10 +756,23 @@ class MainWindow(QMainWindow):
         shapes_menu.addAction(self.text_box_action)
         shapes_menu.addAction(self.wordart_action)
 
+        insert_menu = self.menuBar().addMenu("&Insertar")
+        insert_menu.addAction(self.insert_table_action)
+        insert_menu.addAction(self.insert_image_action)
+        insert_menu.addAction(self.text_box_action)
+        insert_menu.addAction(self.wordart_action)
+        insert_menu.addSeparator()
+        insert_menu.addAction(self.insert_hyperlink_action)
+        bookmark_menu = insert_menu.addMenu("&Marcador")
+        bookmark_menu.addAction(self.add_bookmark_action)
+        bookmark_menu.addAction(self.go_to_bookmark_action)
+        bookmark_menu.addAction(self.delete_bookmark_action)
+
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.toggle_formatbar_action)
         view_menu.addAction(self.toggle_paragraphbar_action)
+        view_menu.addAction(self.toggle_navigation_action)
         view_menu.addAction(self.toggle_statusbar_action)
         theme_menu = view_menu.addMenu("&Tema")
         self.theme_menu = theme_menu
@@ -1370,6 +1407,81 @@ class MainWindow(QMainWindow):
             if not insert_wordart(self._editor, text, style):
                 self._show_error("Introduzca un texto para el WordArt.")
 
+    def _insert_hyperlink(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.hyperlinks import insert_hyperlink
+
+        selected = self._editor.textCursor().selectedText()
+        text, ok = QInputDialog.getText(
+            self, "Hipervínculo", "Texto a mostrar:", text=selected
+        )
+        if not ok:
+            return
+        url, ok = QInputDialog.getText(
+            self, "Hipervínculo", "Dirección (https://, mailto: o #marcador):"
+        )
+        if ok and text:
+            insert_hyperlink(self._editor, text, url)
+
+    def _remove_hyperlink(self) -> None:
+        from rword.core.hyperlinks import remove_hyperlink
+
+        remove_hyperlink(self._editor)
+
+    def _add_bookmark(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.hyperlinks import add_bookmark
+
+        name, ok = QInputDialog.getText(self, "Marcador", "Nombre del marcador:")
+        if ok:
+            add_bookmark(self._editor, name)
+            self._refresh_navigation()
+
+    def _goto_bookmark(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.hyperlinks import bookmarks, goto_bookmark
+
+        names = sorted(bookmarks(self._editor))
+        if not names:
+            self._show_error("No hay marcadores definidos.")
+            return
+        name, ok = QInputDialog.getItem(
+            self, "Ir a marcador", "Marcador:", names, 0, False
+        )
+        if ok:
+            goto_bookmark(self._editor, name)
+
+    def _delete_bookmark(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.hyperlinks import bookmarks, remove_bookmark
+
+        names = sorted(bookmarks(self._editor))
+        if not names:
+            self._show_error("No hay marcadores definidos.")
+            return
+        name, ok = QInputDialog.getItem(
+            self, "Eliminar marcador", "Marcador:", names, 0, False
+        )
+        if ok:
+            remove_bookmark(self._editor, name)
+            self._refresh_navigation()
+
+    def _toggle_navigation_panel(self, checked: bool) -> None:
+        if self._navigation_panel is None:
+            self._navigation_panel = NavigationPanel(self._editor, self)
+            self.addDockWidget(
+                Qt.DockWidgetArea.RightDockWidgetArea, self._navigation_panel
+            )
+        self._navigation_panel.setVisible(checked)
+
+    def _refresh_navigation(self) -> None:
+        if self._navigation_panel is not None:
+            self._navigation_panel.refresh()
+
     def _rebuild_theme_menu(self) -> None:
         theme_menu = self.theme_menu
         for action in list(theme_menu.actions()):
@@ -1400,6 +1512,18 @@ class MainWindow(QMainWindow):
         self._editor.cursorPositionChanged.connect(
             self._on_painter_cursor_move
         )
+        self._editor.link_clicked.connect(self._on_link_clicked)
+
+    def _on_link_clicked(self, href: str) -> None:
+        if href.startswith("#"):
+            from rword.core.hyperlinks import goto_bookmark
+
+            goto_bookmark(self._editor, href[1:])
+            return
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        QDesktopServices.openUrl(QUrl(href))
 
     def _on_painter_cursor_move(self) -> None:
         if self._format_painter.active:
