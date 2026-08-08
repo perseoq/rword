@@ -980,6 +980,12 @@ class MainWindow(QMainWindow):
         self.manage_plugins_action = QAction("Administrar complementos...", self)
         self.manage_plugins_action.triggered.connect(self._manage_plugins)
 
+        self.api_key_action = QAction("Configurar clave de API...", self)
+        self.api_key_action.triggered.connect(self._configure_api_key)
+
+        self.ai_about_action = QAction("Acerca de la IA...", self)
+        self.ai_about_action.triggered.connect(self._ai_about)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1342,6 +1348,11 @@ class MainWindow(QMainWindow):
         customize_menu.addAction(self.customize_toolbar_action)
         customize_menu.addAction(self.shortcuts_action)
         customize_menu.addAction(self.manage_plugins_action)
+
+        ai_menu = self.menuBar().addMenu("&IA")
+        ai_menu.addAction(self.api_key_action)
+        ai_menu.addAction(self.ai_about_action)
+        self.ai_menu = ai_menu
 
         view_menu = self.menuBar().addMenu("&Ver")
         modes_menu = view_menu.addMenu("&Modos de vista")
@@ -3055,6 +3066,55 @@ class MainWindow(QMainWindow):
         dialog.exec()
         for name, check in checkboxes.items():
             self._plugin_manager.set_enabled(name, check.isChecked())
+
+    def _configure_api_key(self) -> None:
+        from rword.core.ai.config import ApiKeyManager
+        from rword.ui.dialogs.api_key import ApiKeyDialog
+
+        dialog = ApiKeyDialog(ApiKeyManager(self._settings), self)
+        dialog.exec()
+
+    def _ai_about(self) -> None:
+        from rword.core.ai.config import DEFAULT_MODEL
+
+        QMessageBox.information(
+            self,
+            "Acerca de la IA",
+            f"Integración con DeepSeek ({DEFAULT_MODEL}).\n"
+            "Las funciones de IA se ejecutan a través de la API oficial. "
+            "Consulte la documentación de privacidad de DeepSeek.",
+        )
+
+    def _ai_client(self):
+        from rword.core.ai import DeepSeekClient
+        from rword.core.ai.config import ApiKeyManager
+
+        manager = ApiKeyManager(self._settings)
+        return DeepSeekClient(manager.get())
+
+    def _ai_error(self, error) -> None:
+        self._show_error(f"Error de IA:\n{error}")
+
+    def _ai_run_and_apply(self, operation, insert_mode: str = "insert") -> None:
+        """Ejecuta una operación de IA y aplica el resultado al editor."""
+        from rword.core.ai import AiError
+
+        try:
+            result = operation()
+        except AiError as error:
+            self._ai_error(error)
+            return
+        if insert_mode == "replace_selection":
+            cursor = self._editor.textCursor()
+            if cursor.hasSelection():
+                cursor.insertText(result)
+            else:
+                self._editor.insertPlainText(result)
+        elif insert_mode == "replace_document":
+            self._editor.setPlainText(result)
+        else:
+            self._editor.insertPlainText(result)
+        self.statusBar().showMessage("Operación de IA completada.", 3000)
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
