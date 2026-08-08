@@ -197,3 +197,27 @@ def executive_summary(client, text: str) -> str:
         "Genera un resumen ejecutivo del siguiente texto.",
         text,
     )
+
+
+# --- Operaciones sobre la selección ----------------------------------------
+
+def explain(client, text: str) -> str:
+    return _chat(client, "Explica el siguiente texto de forma clara:", text)
+
+
+def generate_questions(client, text: str) -> str:
+    return _chat(
+        client,
+        "Genera preguntas de comprensión sobre el siguiente texto:",
+        text,
+    )
+
+
+def answer_question(client, document: str, question: str) -> str:
+    return _chat(
+        client,
+        f"Responde a la pregunta usando únicamente el contenido del documento. "
+        f"Pregunta: {question}",
+        document,
+        temperature=0.3,
+    )

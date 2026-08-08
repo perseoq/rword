@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
         self._format_painter = FormatPainter()
         self._navigation_panel: NavigationPanel | None = None
         self._comments_panel: CommentsPanel | None = None
+        self._ai_chat_panel = None
 
         from rword.ui.ruler import Ruler
 
@@ -1108,6 +1109,38 @@ class MainWindow(QMainWindow):
             lambda: self._ai_context("executive_summary", "insert")
         )
 
+        self.ai_explain_action = QAction("Explicar selección", self)
+        self.ai_explain_action.triggered.connect(
+            lambda: self._ai_context("explain", "insert")
+        )
+
+        self.ai_selection_summary_action = QAction("Resumir selección", self)
+        self.ai_selection_summary_action.triggered.connect(
+            lambda: self._ai_context("summarize", "insert")
+        )
+
+        self.ai_selection_translate_action = QAction("Traducir selección...", self)
+        self.ai_selection_translate_action.triggered.connect(self._ai_translate)
+
+        self.ai_selection_improve_action = QAction("Mejorar selección", self)
+        self.ai_selection_improve_action.triggered.connect(
+            lambda: self._ai_context("improve_fluidity", "replace_selection")
+        )
+
+        self.ai_selection_errors_action = QAction("Detectar errores en la selección", self)
+        self.ai_selection_errors_action.triggered.connect(
+            lambda: self._ai_context("correct", "replace_selection")
+        )
+
+        self.ai_selection_questions_action = QAction("Generar preguntas", self)
+        self.ai_selection_questions_action.triggered.connect(
+            lambda: self._ai_context("generate_questions", "insert")
+        )
+
+        self.ai_chat_panel_action = QAction("Chat con IA", self)
+        self.ai_chat_panel_action.setCheckable(True)
+        self.ai_chat_panel_action.triggered.connect(self._toggle_ai_chat)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1506,6 +1539,15 @@ class MainWindow(QMainWindow):
         analysis_menu.addAction(self.ai_audience_action)
         analysis_menu.addAction(self.ai_classify_action)
         analysis_menu.addAction(self.ai_executive_action)
+        selection_menu = ai_menu.addMenu("&Selección")
+        selection_menu.addAction(self.ai_explain_action)
+        selection_menu.addAction(self.ai_selection_summary_action)
+        selection_menu.addAction(self.ai_selection_translate_action)
+        selection_menu.addAction(self.ai_selection_improve_action)
+        selection_menu.addAction(self.ai_selection_errors_action)
+        selection_menu.addAction(self.ai_selection_questions_action)
+        ai_menu.addSeparator()
+        ai_menu.addAction(self.ai_chat_panel_action)
         self.ai_menu = ai_menu
 
         view_menu = self.menuBar().addMenu("&Ver")
@@ -3345,6 +3387,18 @@ class MainWindow(QMainWindow):
             lambda: capabilities.translate(client, context, target),
             insert_mode,
         )
+
+    def _toggle_ai_chat(self, checked: bool) -> None:
+        from rword.ui.ai_chat_panel import AiChatPanel
+
+        if self._ai_chat_panel is None:
+            self._ai_chat_panel = AiChatPanel(
+                self._editor, self._ai_client, self
+            )
+            self.addDockWidget(
+                Qt.DockWidgetArea.RightDockWidgetArea, self._ai_chat_panel
+            )
+        self._ai_chat_panel.setVisible(checked)
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
