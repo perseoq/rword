@@ -46,6 +46,39 @@ class Editor(QTextEdit):
         self._draw_active = False
         self._draw_last = None
         self._draw_image: QImage | None = None
+        self._grid_visible = False
+        self._view_mode = "print"
+        self._zoom_percent = 100
+
+    def set_zoom(self, percent: int) -> None:
+        target = max(20, min(500, percent))
+        delta = (target - self._zoom_percent) / 10.0
+        self.zoomInF(delta)
+        self._zoom_percent = target
+
+    def zoom(self) -> int:
+        return self._zoom_percent
+
+    def set_grid_visible(self, visible: bool) -> None:
+        self._grid_visible = visible
+        self.viewport().update()
+
+    def grid_visible(self) -> bool:
+        return self._grid_visible
+
+    def set_view_mode(self, mode: str) -> None:
+        """Modos: 'read', 'print', 'web', 'outline', 'draft'."""
+        self._view_mode = mode
+        if mode == "web":
+            self.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+            self.document().setDefaultStyleSheet(
+                "body { max-width: 900px; margin: 0 auto; }"
+            )
+        else:
+            self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+
+    def view_mode(self) -> str:
+        return self._view_mode
 
     def set_drawing(self, enabled: bool, kind: str = "pencil",
                     color: QColor | None = None, width: float = 2.0) -> None:
@@ -248,12 +281,26 @@ class Editor(QTextEdit):
         if self._line_numbers_enabled:
             self._paint_line_numbers()
         super().paintEvent(event)
+        if self._grid_visible:
+            self._paint_grid()
         if self._drawing_enabled and self._draw_active and self._draw_image:
             painter = QPainter(self.viewport())
             painter.drawImage(0, 0, self._draw_image)
             painter.end()
         if self._watermark:
             self._paint_watermark()
+
+    def _paint_grid(self) -> None:
+        painter = QPainter(self.viewport())
+        painter.setPen(QColor(0, 0, 0, 18))
+        step = 20
+        width = self.viewport().width()
+        height = self.viewport().height()
+        for x in range(step, width, step):
+            painter.drawLine(x, 0, x, height)
+        for y in range(step, height, step):
+            painter.drawLine(0, y, width, y)
+        painter.end()
 
     def _paint_line_numbers(self) -> None:
         painter = QPainter(self.viewport())

@@ -14,7 +14,10 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QSplitter,
     QToolBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 from rword.config import (
@@ -83,7 +86,18 @@ class MainWindow(QMainWindow):
         self._format_painter = FormatPainter()
         self._navigation_panel: NavigationPanel | None = None
         self._comments_panel: CommentsPanel | None = None
-        self.setCentralWidget(self._editor)
+
+        from rword.ui.ruler import Ruler
+
+        self._ruler = Ruler(self._editor, self)
+        self._central = QWidget(self)
+        self._central_layout = QVBoxLayout(self._central)
+        self._central_layout.setContentsMargins(0, 0, 0, 0)
+        self._central_layout.setSpacing(0)
+        self._central_layout.addWidget(self._ruler)
+        self._central_layout.addWidget(self._editor)
+        self.setCentralWidget(self._central)
+        self._splitter: QSplitter | None = None
         self._build_actions()
         self._build_menus()
         self._build_toolbar()
@@ -710,6 +724,56 @@ class MainWindow(QMainWindow):
         self.attachment_action = QAction("Adjuntar archivo (PDF/video/audio)...", self)
         self.attachment_action.triggered.connect(self._insert_attachment)
 
+        self.zoom_in_action = QAction("Acercar", self)
+        self.zoom_in_action.setShortcut("Ctrl++")
+        self.zoom_in_action.triggered.connect(lambda: self._change_zoom(10))
+
+        self.zoom_out_action = QAction("Alejar", self)
+        self.zoom_out_action.setShortcut("Ctrl+-")
+        self.zoom_out_action.triggered.connect(lambda: self._change_zoom(-10))
+
+        self.zoom_reset_action = QAction("100%", self)
+        self.zoom_reset_action.triggered.connect(lambda: self._set_zoom(100))
+
+        self.zoom_fit_width_action = QAction("Ajustar al ancho de página", self)
+        self.zoom_fit_width_action.triggered.connect(self._fit_to_width)
+
+        self.zoom_fit_page_action = QAction("Página completa", self)
+        self.zoom_fit_page_action.triggered.connect(self._fit_page)
+
+        self.read_mode_action = QAction("Modo lectura", self)
+        self.read_mode_action.triggered.connect(self._enter_read_mode)
+
+        self.print_mode_action = QAction("Diseño de impresión", self)
+        self.print_mode_action.triggered.connect(self._enter_print_mode)
+
+        self.web_mode_action = QAction("Diseño web", self)
+        self.web_mode_action.triggered.connect(self._enter_web_mode)
+
+        self.draft_mode_action = QAction("Borrador", self)
+        self.draft_mode_action.triggered.connect(self._enter_draft_mode)
+
+        self.outline_mode_action = QAction("Esquema", self)
+        self.outline_mode_action.triggered.connect(self._enter_outline_mode)
+
+        self.ruler_action = QAction("Regla", self)
+        self.ruler_action.setCheckable(True)
+        self.ruler_action.triggered.connect(self._toggle_ruler)
+
+        self.grid_action = QAction("Cuadrícula", self)
+        self.grid_action.setCheckable(True)
+        self.grid_action.triggered.connect(self._toggle_grid)
+
+        self.fullscreen_action = QAction("Pantalla completa", self)
+        self.fullscreen_action.setShortcut("F11")
+        self.fullscreen_action.triggered.connect(self._toggle_fullscreen)
+
+        self.split_window_action = QAction("Dividir ventana", self)
+        self.split_window_action.triggered.connect(self._split_window)
+
+        self.new_window_action = QAction("Nueva ventana", self)
+        self.new_window_action.triggered.connect(self._new_window)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -990,11 +1054,33 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self.count_action)
 
         view_menu = self.menuBar().addMenu("&Ver")
+        modes_menu = view_menu.addMenu("&Modos de vista")
+        modes_menu.addAction(self.read_mode_action)
+        modes_menu.addAction(self.print_mode_action)
+        modes_menu.addAction(self.web_mode_action)
+        modes_menu.addAction(self.draft_mode_action)
+        modes_menu.addAction(self.outline_mode_action)
+        zoom_menu = view_menu.addMenu("&Zoom")
+        zoom_menu.addAction(self.zoom_in_action)
+        zoom_menu.addAction(self.zoom_out_action)
+        zoom_menu.addAction(self.zoom_reset_action)
+        zoom_menu.addSeparator()
+        zoom_menu.addAction(self.zoom_fit_width_action)
+        zoom_menu.addAction(self.zoom_fit_page_action)
+        view_menu.addSeparator()
+        view_menu.addAction(self.ruler_action)
+        view_menu.addAction(self.grid_action)
+        view_menu.addAction(self.toggle_navigation_action)
+        view_menu.addSeparator()
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.toggle_formatbar_action)
         view_menu.addAction(self.toggle_paragraphbar_action)
-        view_menu.addAction(self.toggle_navigation_action)
+        view_menu.addAction(self.toggle_drawingbar_action)
         view_menu.addAction(self.toggle_statusbar_action)
+        view_menu.addSeparator()
+        view_menu.addAction(self.split_window_action)
+        view_menu.addAction(self.new_window_action)
+        view_menu.addAction(self.fullscreen_action)
         theme_menu = view_menu.addMenu("&Tema")
         self.theme_menu = theme_menu
         theme_menu.aboutToShow.connect(self._rebuild_theme_menu)
@@ -1770,6 +1856,98 @@ class MainWindow(QMainWindow):
             )
         self._navigation_panel.setVisible(checked)
 
+    def _change_zoom(self, delta: int) -> None:
+        self._set_zoom(self._editor.zoom() + delta)
+
+    def _set_zoom(self, percent: int) -> None:
+        self._editor.set_zoom(percent)
+        self._ruler.update()
+
+    def _fit_to_width(self) -> None:
+        from rword.core.pages import current_page_setup
+
+        setup = current_page_setup(self._editor)
+        page_width = setup.page_size_px().width()
+        viewport_width = max(1, self._editor.viewport().width())
+        percent = int(viewport_width / page_width * 100)
+        self._set_zoom(max(20, min(500, percent)))
+
+    def _fit_page(self) -> None:
+        from rword.core.pages import current_page_setup
+
+        setup = current_page_setup(self._editor)
+        page = setup.page_size_px()
+        viewport = self._editor.viewport()
+        percent = int(
+            min(viewport.width() / page.width(), viewport.height() / page.height())
+            * 100
+        )
+        self._set_zoom(max(20, min(500, percent)))
+
+    def _enter_read_mode(self) -> None:
+        self._editor.set_view_mode("read")
+        self.menuBar().hide()
+        self.toolbar.hide()
+        self.format_bar.hide()
+        self.paragraph_bar.hide()
+        self.drawing_bar.hide()
+        self.statusBar().hide()
+
+    def _exit_read_mode(self) -> None:
+        self.menuBar().show()
+        self.toolbar.show()
+        self.format_bar.show()
+        self.paragraph_bar.show()
+        self.statusBar().show()
+        self._editor.set_view_mode("print")
+
+    def _enter_print_mode(self) -> None:
+        self._exit_read_mode()
+        self._editor.set_view_mode("print")
+
+    def _enter_web_mode(self) -> None:
+        self._exit_read_mode()
+        self._editor.set_view_mode("web")
+
+    def _enter_draft_mode(self) -> None:
+        self._exit_read_mode()
+        self._editor.set_view_mode("draft")
+
+    def _enter_outline_mode(self) -> None:
+        self._exit_read_mode()
+        self._editor.set_view_mode("outline")
+        self.toggle_navigation_action.setChecked(True)
+        self._toggle_navigation_panel(True)
+
+    def _toggle_ruler(self, checked: bool) -> None:
+        self._ruler.setVisible(checked)
+
+    def _toggle_grid(self, checked: bool) -> None:
+        self._editor.set_grid_visible(checked)
+
+    def _toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
+    def _split_window(self) -> None:
+        if self._splitter is None:
+            self._splitter = QSplitter(Qt.Orientation.Vertical, self)
+            self._splitter.setObjectName("splitter")
+            self._splitter.addWidget(self._editor)
+            self._second_editor = Editor(self._splitter)
+            self._second_editor.setDocument(self._editor.document())
+            self._splitter.addWidget(self._second_editor)
+            self.setCentralWidget(self._splitter)
+        else:
+            self._splitter.setVisible(not self._splitter.isVisible())
+
+    def _new_window(self) -> None:
+        window = MainWindow()
+        window._editor.setDocument(self._editor.document())
+        window.show()
+
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:
             self._navigation_panel.refresh()
@@ -2105,6 +2283,12 @@ class MainWindow(QMainWindow):
             self._on_painter_cursor_move
         )
         self._editor.link_clicked.connect(self._on_link_clicked)
+        self._editor.cursorPositionChanged.connect(
+            lambda: self._ruler.update()
+        )
+        self._editor.document().contentsChange.connect(
+            lambda *_: self._ruler.update()
+        )
 
     def _on_link_clicked(self, href: str) -> None:
         if href.startswith("#"):
