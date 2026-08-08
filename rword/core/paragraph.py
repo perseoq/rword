@@ -158,6 +158,42 @@ def current_tab_stop_distance(editor: QTextEdit) -> float:
     return editor.document().defaultTextOption().tabStopDistance()
 
 
+def tab_stops(editor: QTextEdit) -> list:
+    """Devuelve las tabulaciones definidas (posición en px y tipo)."""
+    return list(editor.document().defaultTextOption().tabs())
+
+
+def set_tab_stops(editor: QTextEdit, tabs: list) -> None:
+    """Establece las tabulaciones del documento (posición en px y tipo)."""
+    option = editor.document().defaultTextOption()
+    option.setTabs(tabs)
+    editor.document().setDefaultTextOption(option)
+
+
+def add_tab_stop(editor: QTextEdit, position_px: float) -> None:
+    from PySide6.QtGui import QTextOption
+
+    tabs = [tab for tab in tab_stops(editor) if abs(tab.position - position_px) > 2.0]
+    tabs.append(QTextOption.Tab(position_px, QTextOption.TabType.LeftTab))
+    tabs.sort(key=lambda tab: tab.position)
+    set_tab_stops(editor, tabs)
+
+
+def remove_tab_stop(editor: QTextEdit, position_px: float) -> None:
+    tabs = [tab for tab in tab_stops(editor) if abs(tab.position - position_px) > 2.0]
+    set_tab_stops(editor, tabs)
+
+
+def current_indents(editor: QTextEdit) -> dict[str, float]:
+    """Sangrías del párrafo actual en píxeles."""
+    fmt = _block_format(editor)
+    return {
+        "left": fmt.leftMargin(),
+        "right": fmt.rightMargin(),
+        "first_line": fmt.textIndent(),
+    }
+
+
 def clear_paragraph_format(editor: QTextEdit) -> None:
     fmt = QTextBlockFormat()
     fmt.setAlignment(Qt.AlignmentFlag.AlignLeft)

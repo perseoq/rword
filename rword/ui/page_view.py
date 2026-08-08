@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QScrollArea, QWidget
 
@@ -15,10 +15,13 @@ _GRAY_BACKGROUND = QColor("#909090")
 class PageView(QScrollArea):
     """Muestra el editor como una hoja de papel con el scroll en el área gris."""
 
+    layout_changed = Signal()
+
     def __init__(self, editor, parent=None) -> None:
         super().__init__(parent)
         self._editor = editor
         setup = PageSetup()
+        editor._applied_page_setup = setup
         self._page_width = int(setup.page_size_px().width())
         self._min_sheet_height = int(setup.page_size_px().height())
 
@@ -88,3 +91,4 @@ class PageView(QScrollArea):
         container_height = max(sheet_height + 2 * _MARGIN, self.viewport().height())
         self._container.setFixedSize(container_width, container_height)
         editor.move((container_width - page) // 2, _MARGIN)
+        self.layout_changed.emit()

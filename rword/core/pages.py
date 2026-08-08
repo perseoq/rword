@@ -69,11 +69,6 @@ def current_page_setup(editor: QTextEdit) -> PageSetup:
     """Obtiene la configuración de página aplicada al documento."""
     stored = getattr(editor, "_applied_page_setup", None)
     if stored is not None:
-        margins = editor.document().rootFrame().frameFormat()
-        stored.left_margin_mm = margins.leftMargin() / MM_TO_PX
-        stored.right_margin_mm = margins.rightMargin() / MM_TO_PX
-        stored.top_margin_mm = margins.topMargin() / MM_TO_PX
-        stored.bottom_margin_mm = margins.bottomMargin() / MM_TO_PX
         return stored
     document = editor.document()
     size = document.pageSize()

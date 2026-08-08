@@ -72,15 +72,24 @@ def test_outline_mode(main_window):
 def test_ruler_widget(main_window):
     ruler = main_window._ruler
     assert isinstance(ruler, Ruler)
-    assert ruler.height() == 22
+    assert ruler.height() == 24
+
+
+def test_vruler_widget(main_window):
+    from rword.ui.ruler import VRuler
+
+    assert isinstance(main_window._vruler, VRuler)
+    assert main_window._vruler.width() == 24
 
 
 def test_toggle_ruler(main_window):
     main_window.show()
     main_window._toggle_ruler(False)
     assert not main_window._ruler.isVisible()
+    assert not main_window._vruler.isVisible()
     main_window._toggle_ruler(True)
     assert main_window._ruler.isVisible()
+    assert main_window._vruler.isVisible()
     main_window.close()
 
 

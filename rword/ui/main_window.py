@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QColorDialog,
     QFileDialog,
     QFontDialog,
+    QGridLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -100,16 +101,29 @@ class MainWindow(QMainWindow):
         self._ai_chat_panel = None
 
         from rword.ui.page_view import PageView
-        from rword.ui.ruler import Ruler
+        from rword.ui.ruler import HRuler, VRuler
 
-        self._ruler = Ruler(self._editor, self)
+        self._ruler = HRuler(self._editor, self)
+        self._vruler = VRuler(self._editor, self)
         self._page_view = PageView(self._editor, self)
+
+        self._corner = QWidget(self)
+        self._corner.setFixedSize(24, 24)
+        from PySide6.QtGui import QPalette as _Palette
+
+        corner_palette = self._corner.palette()
+        corner_palette.setColor(_Palette.ColorRole.Window, QColor("#eaeaea"))
+        self._corner.setAutoFillBackground(True)
+        self._corner.setPalette(corner_palette)
+
         self._central = QWidget(self)
-        self._central_layout = QVBoxLayout(self._central)
+        self._central_layout = QGridLayout(self._central)
         self._central_layout.setContentsMargins(0, 0, 0, 0)
         self._central_layout.setSpacing(0)
-        self._central_layout.addWidget(self._ruler)
-        self._central_layout.addWidget(self._page_view)
+        self._central_layout.addWidget(self._corner, 0, 0)
+        self._central_layout.addWidget(self._ruler, 0, 1)
+        self._central_layout.addWidget(self._vruler, 1, 0)
+        self._central_layout.addWidget(self._page_view, 1, 1)
         self.setCentralWidget(self._central)
         self._splitter: QSplitter | None = None
         self._build_actions()
@@ -2573,7 +2587,7 @@ class MainWindow(QMainWindow):
     def _set_zoom(self, percent: int) -> None:
         self._editor.set_zoom(percent)
         self._page_view.refresh()
-        self._ruler.update()
+        self._refresh_rulers()
 
     def _fit_to_width(self) -> None:
         from rword.core.pages import current_page_setup
@@ -2633,6 +2647,8 @@ class MainWindow(QMainWindow):
 
     def _toggle_ruler(self, checked: bool) -> None:
         self._ruler.setVisible(checked)
+        self._vruler.setVisible(checked)
+        self._corner.setVisible(checked)
 
     def _toggle_grid(self, checked: bool) -> None:
         self._editor.set_grid_visible(checked)
@@ -2921,7 +2937,6 @@ class MainWindow(QMainWindow):
             QLineEdit,
             QListWidget,
             QPushButton,
-            QVBoxLayout,
         )
 
         from rword.core.macros import (
@@ -3393,7 +3408,6 @@ class MainWindow(QMainWindow):
             QCheckBox,
             QDialog,
             QDialogButtonBox,
-            QVBoxLayout,
         )
 
         dialog = QDialog(self)
@@ -3945,7 +3959,6 @@ class MainWindow(QMainWindow):
             QDialogButtonBox,
             QListWidget,
             QPushButton,
-            QVBoxLayout,
         )
 
         from rword.core.spelling import SpellChecker
@@ -4036,12 +4049,29 @@ class MainWindow(QMainWindow):
             self._on_painter_cursor_move
         )
         self._editor.link_clicked.connect(self._on_link_clicked)
-        self._editor.cursorPositionChanged.connect(
-            lambda: self._ruler.update()
-        )
+        self._editor.cursorPositionChanged.connect(self._refresh_rulers)
         self._editor.document().contentsChange.connect(
-            lambda *_: self._ruler.update()
+            lambda *_: self._refresh_rulers()
         )
+        self._page_view.verticalScrollBar().valueChanged.connect(
+            lambda *_: self._refresh_rulers()
+        )
+        self._page_view.layout_changed.connect(self._refresh_rulers)
+        self._ruler.margins_changed.connect(self._on_ruler_margins_changed)
+        self._vruler.margins_changed.connect(self._on_ruler_margins_changed)
+
+    def _refresh_rulers(self) -> None:
+        self._ruler.update()
+        self._vruler.update()
+
+    def _on_ruler_margins_changed(self, setup) -> None:
+        from rword.core.pages import apply_page_setup
+
+        apply_page_setup(self._editor, setup)
+        page = setup.page_size_px()
+        self._page_view.set_page_size(int(page.width()), int(page.height()))
+        self._page_view.update_paper_color(setup.page_color)
+        self._refresh_rulers()
 
     def _on_link_clicked(self, href: str) -> None:
         if href.startswith("#"):
