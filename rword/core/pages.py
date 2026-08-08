@@ -28,10 +28,10 @@ class PageSetup:
     custom_width_mm: float = 210.0
     custom_height_mm: float = 297.0
     orientation: str = "portrait"
-    left_margin_mm: float = 25.0
-    right_margin_mm: float = 25.0
-    top_margin_mm: float = 25.0
-    bottom_margin_mm: float = 25.0
+    left_margin_mm: float = 20.0
+    right_margin_mm: float = 20.0
+    top_margin_mm: float = 20.0
+    bottom_margin_mm: float = 20.0
     page_color: str = "#ffffff"
     watermark: str = ""
 
