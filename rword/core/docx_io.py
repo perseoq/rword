@@ -9,13 +9,6 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QTextDocument, QTextListFormat, QTextTable
 from PySide6.QtWidgets import QTextEdit
 
-_ALIGN_MAP = {
-    0: "left",
-    1: "center",
-    2: "right",
-    3: "justify",
-}
-
 
 def _run_html(run) -> str:
     text = html_module.escape(run.text)
@@ -51,6 +44,36 @@ def _run_html(run) -> str:
     return text
 
 
+def _paragraph_runs_html(paragraph, document) -> str:
+    """HTML de los fragmentos de un párrafo, incluidas las imágenes."""
+    parts = []
+    for run in paragraph.runs:
+        blips = run._element.findall(".//" + "{http://schemas.openxmlformats.org/drawingml/2006/main}blip")
+        if blips:
+            embed = blips[0].get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
+            if embed:
+                image_html = _image_html(document, embed)
+                if image_html:
+                    parts.append(image_html)
+        parts.append(_run_html(run))
+    return "".join(parts)
+
+
+def _image_html(document, relationship_id: str) -> str:
+    """Devuelve <img src='file:///...'> para una imagen incrustada."""
+    import uuid
+
+    try:
+        image = document.part.related_parts[relationship_id]
+    except KeyError:
+        return ""
+    temp_dir = Path.home() / ".cache" / "rword"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = temp_dir / f"docx_{uuid.uuid4().hex}.png"
+    tmp_path.write_bytes(image.blob)
+    return f'<img src="{tmp_path.as_uri()}"/>'
+
+
 _HIGHLIGHT_HEX = {
     "AUTO": None,
     "BLACK": "#000000",
@@ -80,10 +103,9 @@ def _highlight_color(index) -> str | None:
     return _HIGHLIGHT_HEX.get(name)
 
 
-def _paragraph_html(paragraph) -> str:
-    if not paragraph.text and not paragraph.runs:
+def _paragraph_html(paragraph, content: str) -> str:
+    if not paragraph.text and not paragraph.runs and not content:
         return "<p><br/></p>"
-    content = "".join(_run_html(run) for run in paragraph.runs)
     style = paragraph.style.name or ""
     if style.startswith("Heading"):
         level = style.replace("Heading", "").strip()
@@ -92,16 +114,44 @@ def _paragraph_html(paragraph) -> str:
         except ValueError:
             level = 1
         return f"<h{level}>{content}</h{level}>"
+
+    styles: list[str] = []
     alignment = paragraph.alignment
     align_map = {0: "left", 1: "center", 2: "right", 3: "justify"}
-    align = None
     try:
         align = align_map.get(int(alignment))
     except (TypeError, ValueError):
         align = None
     if align:
-        return f"<p style='text-align:{align}'>{content}</p>"
+        styles.append(f"text-align:{align}")
+
+    fmt = paragraph.paragraph_format
+    left_indent = _emu_to_px(fmt.left_indent)
+    if left_indent:
+        styles.append(f"margin-left:{left_indent}px")
+    if fmt.space_before is not None:
+        styles.append(f"margin-top:{_emu_to_px(fmt.space_before)}px")
+    if fmt.space_after is not None:
+        styles.append(f"margin-bottom:{_emu_to_px(fmt.space_after)}px")
+    if fmt.line_spacing:
+        import contextlib
+
+        with contextlib.suppress(TypeError, ValueError):
+            styles.append(f"line-height:{float(fmt.line_spacing):g}")
+
+    if styles:
+        return f"<p style='{'; '.join(styles)}'>{content}</p>"
     return f"<p>{content}</p>"
+
+
+def _emu_to_px(value) -> int:
+    if value is None:
+        return 0
+    try:
+        emu = value.emu
+    except AttributeError:
+        return 0
+    return int(round(emu * 96 / 914400))
 
 
 def _table_html(table) -> str:
@@ -162,37 +212,38 @@ def _embed_html(path: str | Path, html: str) -> None:
 
 def _load_docx_standard(editor: QTextEdit, path: str | Path) -> None:
     from docx import Document
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
 
     doc = Document(str(path))
     parts: list[str] = []
     list_kind: str | None = None
     body = doc.element.body
-    from docx.table import Table
-    from docx.text.paragraph import Paragraph
 
     for child in body.iterchildren():
         if child.tag.endswith("}p"):
             paragraph = Paragraph(child, doc)
             style = paragraph.style.name or ""
+            content = _paragraph_runs_html(paragraph, doc)
             if "List Bullet" in style:
                 if list_kind != "ul":
                     if list_kind == "ol":
                         parts.append("</ol>")
                     parts.append("<ul>")
                     list_kind = "ul"
-                parts.append(f"<li>{''.join(_run_html(r) for r in paragraph.runs)}</li>")
+                parts.append(f"<li>{content}</li>")
             elif "List Number" in style:
                 if list_kind != "ol":
                     if list_kind == "ul":
                         parts.append("</ul>")
                     parts.append("<ol>")
                     list_kind = "ol"
-                parts.append(f"<li>{''.join(_run_html(r) for r in paragraph.runs)}</li>")
+                parts.append(f"<li>{content}</li>")
             else:
                 if list_kind:
                     parts.append("</ol>" if list_kind == "ol" else "</ul>")
                     list_kind = None
-                parts.append(_paragraph_html(paragraph))
+                parts.append(_paragraph_html(paragraph, content))
         elif child.tag.endswith("}tbl"):
             if list_kind:
                 parts.append("</ol>" if list_kind == "ol" else "</ul>")
@@ -201,7 +252,49 @@ def _load_docx_standard(editor: QTextEdit, path: str | Path) -> None:
     if list_kind:
         parts.append("</ol>" if list_kind == "ol" else "</ul>")
     editor.setHtml("".join(parts))
+
+    default_font, default_size = _docx_default_font(doc)
+    if default_font or default_size:
+        font = editor.font()
+        if default_font:
+            font.setFamily(default_font)
+        if default_size:
+            font.setPointSizeF(float(default_size))
+        editor.document().setDefaultFont(font)
     editor.document().setModified(False)
+
+
+def _docx_default_font(doc) -> tuple[str | None, float | None]:
+    """Fuente y tamaño por defecto del documento (docDefaults o estilo Normal)."""
+    from docx.oxml.ns import qn
+
+    styles_element = doc.styles.element
+    defaults = styles_element.find(qn("w:docDefaults"))
+    font = None
+    size = None
+    if defaults is not None:
+        rpr_default = defaults.find(qn("w:rPrDefault"))
+        if rpr_default is not None:
+            rpr = rpr_default.find(qn("w:rPr"))
+            if rpr is not None:
+                rfonts = rpr.find(qn("w:rFonts"))
+                if rfonts is not None:
+                    font = rfonts.get(qn("w:ascii")) or rfonts.get(qn("w:hAnsi"))
+                size_el = rpr.find(qn("w:sz"))
+                if size_el is not None:
+                    try:
+                        size = int(size_el.get(qn("w:val"))) / 2.0
+                    except (TypeError, ValueError):
+                        size = None
+    try:
+        normal = doc.styles["Normal"]
+        if not font and normal.font.name:
+            font = normal.font.name
+        if not size and normal.font.size is not None:
+            size = normal.font.size.pt
+    except KeyError:
+        pass
+    return font, size
 
 
 def save_docx(editor: QTextEdit, path: str | Path) -> None:

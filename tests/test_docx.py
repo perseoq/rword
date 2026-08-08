@@ -142,3 +142,41 @@ def test_external_docx_preserves_formatting(editor, tmp_path):
     assert "#ff0000" in html
     assert "center" in html
     assert "20pt" in html
+
+
+def test_external_docx_image(editor, tmp_path):
+    from docx import Document
+    from PySide6.QtGui import QColor, QImage
+
+    img_path = tmp_path / "img.png"
+    img = QImage(30, 20, QImage.Format.Format_RGB32)
+    img.fill(QColor("blue"))
+    img.save(str(img_path))
+
+    path = tmp_path / "con_imagen.docx"
+    doc = Document()
+    doc.add_paragraph("texto")
+    doc.add_paragraph().add_run().add_picture(str(img_path))
+    doc.save(str(path))
+
+    from rword.core.docx_io import _read_embedded_html, load_docx
+
+    assert _read_embedded_html(path) is None
+    editor.clear()
+    load_docx(editor, path)
+    assert "<img" in editor.toHtml() or "src=" in editor.toHtml()
+
+
+def test_external_docx_default_font_size(editor, tmp_path):
+    from docx import Document
+
+    path = tmp_path / "d.docx"
+    doc = Document()
+    doc.add_paragraph("x")
+    doc.save(str(path))
+
+    from rword.core.docx_io import load_docx
+
+    editor.clear()
+    load_docx(editor, path)
+    assert editor.document().defaultFont().pointSizeF() == 11.0
