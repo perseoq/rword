@@ -1,37 +1,56 @@
-"""Vista de página: hoja de papel centrada sobre un fondo gris."""
+"""Vista de página: hoja de papel que se desplaza sobre un fondo gris."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPainter, QPalette, QResizeEvent
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QScrollArea, QWidget
 
 from rword.core.pages import PageSetup
 
 _MARGIN = 28
 _GRAY_BACKGROUND = QColor("#909090")
-_PAGE_BORDER = QColor("#b0b0b0")
 
 
-class PageView(QWidget):
-    """Contiene al editor como una hoja de papel centrada sobre fondo gris."""
+class PageView(QScrollArea):
+    """Muestra el editor como una hoja de papel con el scroll en el área gris."""
 
     def __init__(self, editor, parent=None) -> None:
         super().__init__(parent)
         self._editor = editor
-        self._page_width = int(PageSetup().page_size_px().width())
+        setup = PageSetup()
+        self._page_width = int(setup.page_size_px().width())
+        self._min_sheet_height = int(setup.page_size_px().height())
+
+        self.setWidgetResizable(False)
+        self.setFrameShape(self.Shape.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setAutoFillBackground(True)
         palette = self.palette()
         palette.setColor(QPalette.ColorRole.Window, _GRAY_BACKGROUND)
+        palette.setColor(QPalette.ColorRole.Base, _GRAY_BACKGROUND)
         self.setPalette(palette)
-        editor.setParent(self)
+
+        self._container = QWidget()
+        self._container.setAutoFillBackground(True)
+        container_palette = self._container.palette()
+        container_palette.setColor(QPalette.ColorRole.Window, _GRAY_BACKGROUND)
+        self._container.setPalette(container_palette)
+
+        editor.setParent(self._container)
+        editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         editor.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         editor.show()
         self.update_paper_color("#ffffff")
+        self.setWidget(self._container)
 
-    def set_page_width(self, width: int) -> None:
+        editor.document().contentsChange.connect(self._relayout)
+
+    def set_page_size(self, width: int, height: int) -> None:
         self._page_width = max(200, int(width))
-        self._layout_editor()
+        self._min_sheet_height = max(200, int(height))
+        self._relayout()
 
     def update_paper_color(self, color: str) -> None:
         palette = self._editor.palette()
@@ -39,26 +58,33 @@ class PageView(QWidget):
         palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
         self._editor.setPalette(palette)
 
-    def resizeEvent(self, event: QResizeEvent) -> None:
+    def refresh(self) -> None:
+        self._relayout()
+
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._layout_editor()
+        self._relayout()
 
-    def _layout_editor(self) -> None:
-        available = self.width() - 2 * _MARGIN
-        page = min(available, self._page_width)
-        if page < 120:
+    def _relayout(self) -> None:
+        editor = self._editor
+        zoom = editor.zoom() / 100.0
+        display_page = self._page_width * zoom
+        available = self.viewport().width() - 2 * _MARGIN
+        page = min(available, display_page)
+        if page < 160:
             page = max(120, available)
-        x = (self.width() - page) // 2
-        y = _MARGIN
-        height = self.height() - 2 * _MARGIN
-        if height < 120:
-            height = 120
-        self._editor.setGeometry(x, y, page, height)
-        self.update()
+        page = max(120, int(page))
 
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setPen(_PAGE_BORDER)
-        painter.drawRect(self._editor.geometry().adjusted(0, 0, -1, -1))
-        painter.end()
+        editor.setFixedWidth(page)
+        editor.document().setTextWidth(editor.viewport().width())
+
+        content_height = int(editor.document().size().height())
+        min_sheet = self._min_sheet_height * zoom
+        sheet_height = max(content_height, int(min_sheet))
+        sheet_height = max(120, sheet_height)
+        editor.setFixedHeight(sheet_height)
+
+        container_width = max(self.viewport().width(), page + 2 * _MARGIN)
+        container_height = max(sheet_height + 2 * _MARGIN, self.viewport().height())
+        self._container.setFixedSize(container_width, container_height)
+        editor.move((container_width - page) // 2, _MARGIN)

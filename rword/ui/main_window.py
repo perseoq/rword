@@ -2198,9 +2198,8 @@ class MainWindow(QMainWindow):
             new_setup = dialog.setup()
             apply_page_setup(self._editor, new_setup)
             self._page_view.update_paper_color(new_setup.page_color)
-            self._page_view.set_page_width(
-                new_setup.page_size_px().width()
-            )
+            page = new_setup.page_size_px()
+            self._page_view.set_page_size(int(page.width()), int(page.height()))
             self._editor.set_watermark(new_setup.watermark)
 
     def _insert_page_break(self) -> None:
@@ -2573,6 +2572,7 @@ class MainWindow(QMainWindow):
 
     def _set_zoom(self, percent: int) -> None:
         self._editor.set_zoom(percent)
+        self._page_view.refresh()
         self._ruler.update()
 
     def _fit_to_width(self) -> None:
