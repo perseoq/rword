@@ -31,10 +31,14 @@ from rword.config import (
     WINDOW_STATE_KEY,
 )
 from rword.core import formatting, paragraph
+from rword.core.styles import FormatPainter, Style, StyleManager
+from rword.core.themes import ThemeManager, apply_theme
 from rword.ui.dialogs.clipboard_history import ClipboardHistory
 from rword.ui.dialogs.find_replace import FindReplaceDialog
 from rword.ui.dialogs.go_to import GoToDialog
 from rword.ui.dialogs.paragraph import ParagraphDialog
+from rword.ui.dialogs.style import StyleDialog
+from rword.ui.dialogs.style_organizer import StyleOrganizerDialog
 from rword.ui.editor import Editor
 from rword.ui.format_bar import FormatBar
 from rword.ui.paragraph_bar import ParagraphBar
@@ -53,7 +57,12 @@ class MainWindow(QMainWindow):
         self._find_dialog: FindReplaceDialog | None = None
         self._go_to_dialog: GoToDialog | None = None
         self._paragraph_dialog: ParagraphDialog | None = None
+        self._style_dialog: StyleDialog | None = None
+        self._style_organizer: StyleOrganizerDialog | None = None
         self._clipboard_history = ClipboardHistory()
+        self._style_manager = StyleManager(self._settings)
+        self._theme_manager = ThemeManager(self._settings)
+        self._format_painter = FormatPainter()
         self.setCentralWidget(self._editor)
         self._build_actions()
         self._build_menus()
@@ -62,6 +71,7 @@ class MainWindow(QMainWindow):
         self._new_document()
         self._connect_editor_signals()
         self._connect_clipboard()
+        apply_theme(self._editor, self._theme_manager.current)
         self._restore_settings()
     def _build_actions(self) -> None:
         self.new_action = QAction("Nuevo", self)
@@ -311,6 +321,19 @@ class MainWindow(QMainWindow):
         self.shading_clear_action = QAction("Sin sombreado", self)
         self.shading_clear_action.triggered.connect(self._clear_paragraph_shading)
 
+        self.create_style_action = QAction("Nuevo estilo...", self)
+        self.create_style_action.triggered.connect(self._create_style)
+
+        self.modify_style_action = QAction("Modificar estilo actual...", self)
+        self.modify_style_action.triggered.connect(self._modify_current_style)
+
+        self.organizer_action = QAction("Organizador de estilos...", self)
+        self.organizer_action.triggered.connect(self._show_style_organizer)
+
+        self.painter_action = QAction("Pincel de formato", self)
+        self.painter_action.setCheckable(True)
+        self.painter_action.triggered.connect(self._toggle_format_painter)
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -414,11 +437,23 @@ class MainWindow(QMainWindow):
         paragraph_menu.addSeparator()
         paragraph_menu.addAction(self.shading_clear_action)
 
+        styles_menu = self.menuBar().addMenu("&Estilos")
+        self.styles_menu = styles_menu
+        styles_menu.aboutToShow.connect(self._rebuild_styles_menu)
+        styles_menu.addAction(self.create_style_action)
+        styles_menu.addAction(self.modify_style_action)
+        styles_menu.addAction(self.organizer_action)
+        styles_menu.addSeparator()
+        styles_menu.addAction(self.painter_action)
+
         view_menu = self.menuBar().addMenu("&Ver")
         view_menu.addAction(self.toggle_toolbar_action)
         view_menu.addAction(self.toggle_formatbar_action)
         view_menu.addAction(self.toggle_paragraphbar_action)
         view_menu.addAction(self.toggle_statusbar_action)
+        theme_menu = view_menu.addMenu("&Tema")
+        self.theme_menu = theme_menu
+        theme_menu.aboutToShow.connect(self._rebuild_theme_menu)
 
         help_menu = self.menuBar().addMenu("&Ayuda")
         help_menu.addAction(self.about_action)
@@ -437,6 +472,8 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.cut_action)
         self.toolbar.addAction(self.copy_action)
         self.toolbar.addAction(self.paste_action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.painter_action)
         self.addToolBar(self.toolbar)
 
         self.format_bar = FormatBar(self._editor, self)
@@ -656,6 +693,108 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QColor
 
         paragraph.set_paragraph_shading(self._editor, QColor("transparent"))
+
+    def _rebuild_styles_menu(self) -> None:
+        styles_menu = self.styles_menu
+        for action in styles_menu.actions():
+            if action not in (
+                self.create_style_action,
+                self.modify_style_action,
+                self.organizer_action,
+                self.painter_action,
+            ) and action.menu() is None:
+                styles_menu.removeAction(action)
+        for name in sorted(self._style_manager.names()):
+            action = QAction(name, self)
+            action.triggered.connect(
+                lambda checked=False, n=name: self._apply_style(n)
+            )
+            styles_menu.insertAction(
+                self.create_style_action, action
+            )
+
+    def _apply_style(self, name: str) -> None:
+        style = self._style_manager.get(name)
+        from rword.core.styles import apply_style
+
+        apply_style(self._editor, style)
+
+    def _create_style(self) -> None:
+        dialog = StyleDialog(parent=self)
+        if dialog.exec():
+            style = dialog.style()
+            if style.name and style.name not in self._style_manager.names():
+                self._style_manager.add(style)
+                self._apply_style(style.name)
+
+    def _modify_current_style(self) -> None:
+        current = self._editor.currentCharFormat()
+        sample = Style(
+            name="",
+            font_family=current.fontFamilies()[0] if current.fontFamilies() else "Sans Serif",
+            font_size=current.fontPointSize() or 12.0,
+            bold=current.fontWeight() >= 700,
+            italic=current.fontItalic(),
+            color=current.foreground().color().name(),
+        )
+        dialog = StyleDialog(sample, self)
+        if dialog.exec():
+            style = dialog.style()
+            if style.name and style.name not in self._style_manager.names():
+                self._style_manager.add(style)
+                self._apply_style(style.name)
+
+    def _show_style_organizer(self) -> None:
+        if self._style_organizer is None:
+            self._style_organizer = StyleOrganizerDialog(
+                self._style_manager, self
+            )
+        self._style_organizer._reload()
+        self._style_organizer.show()
+        self._style_organizer.raise_()
+
+    def _toggle_format_painter(self, checked: bool) -> None:
+        if checked:
+            self._format_painter.capture(self._editor)
+        else:
+            self._format_painter.clear()
+
+    def _rebuild_theme_menu(self) -> None:
+        theme_menu = self.theme_menu
+        for action in list(theme_menu.actions()):
+            theme_menu.removeAction(action)
+        for name in self._theme_manager.names():
+            action = QAction(name, self)
+            action.setCheckable(True)
+            action.setChecked(name == self._theme_manager.current_name)
+            action.triggered.connect(
+                lambda checked=False, n=name: self._apply_theme(n)
+            )
+            theme_menu.addAction(action)
+
+    def _apply_theme(self, name: str) -> None:
+        theme = self._theme_manager.get(name)
+        self._theme_manager.set_current(name)
+        apply_theme(self._editor, theme)
+
+    def _connect_editor_signals(self) -> None:
+        self._editor.document().modificationChanged.connect(
+            self._on_modification_changed
+        )
+        self._editor.textChanged.connect(self._update_statusbar)
+        self._editor.copyAvailable.connect(self.copy_action.setEnabled)
+        self._editor.copyAvailable.connect(self.cut_action.setEnabled)
+        self._editor.undoAvailable.connect(self.undo_action.setEnabled)
+        self._editor.redoAvailable.connect(self.redo_action.setEnabled)
+        self._editor.cursorPositionChanged.connect(
+            self._on_painter_cursor_move
+        )
+
+    def _on_painter_cursor_move(self) -> None:
+        if self._format_painter.active:
+            self._format_painter.apply(self._editor)
+            self._format_painter.clear()
+            self.painter_action.setChecked(False)
 
     def _choose_font(self) -> None:
         current = self._editor.currentCharFormat()
