@@ -44,18 +44,26 @@ def _run_html(run) -> str:
     return text
 
 
-def _paragraph_runs_html(paragraph, document) -> str:
-    """HTML de los fragmentos de un párrafo, incluidas las imágenes."""
+def _safe_runs_html(paragraph, document) -> str:
+    """HTML de los fragmentos (con imágenes); texto plano si algo no se puede leer."""
     parts = []
     for run in paragraph.runs:
-        blips = run._element.findall(".//" + "{http://schemas.openxmlformats.org/drawingml/2006/main}blip")
-        if blips:
-            embed = blips[0].get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
-            if embed:
-                image_html = _image_html(document, embed)
-                if image_html:
-                    parts.append(image_html)
-        parts.append(_run_html(run))
+        try:
+            blips = run._element.findall(
+                ".//"
+                + "{http://schemas.openxmlformats.org/drawingml/2006/main}blip"
+            )
+            if blips:
+                embed = blips[0].get(
+                    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
+                )
+                if embed:
+                    image_html = _image_html(document, embed)
+                    if image_html:
+                        parts.append(image_html)
+            parts.append(_run_html(run))
+        except Exception:  # noqa: BLE001 - formatos no soportados
+            parts.append(html_module.escape(run.text))
     return "".join(parts)
 
 
@@ -116,12 +124,7 @@ def _paragraph_html(paragraph, content: str) -> str:
         return f"<h{level}>{content}</h{level}>"
 
     styles: list[str] = []
-    alignment = paragraph.alignment
-    align_map = {0: "left", 1: "center", 2: "right", 3: "justify"}
-    try:
-        align = align_map.get(int(alignment))
-    except (TypeError, ValueError):
-        align = None
+    align = _paragraph_alignment(paragraph)
     if align:
         styles.append(f"text-align:{align}")
 
@@ -142,6 +145,30 @@ def _paragraph_html(paragraph, content: str) -> str:
     if styles:
         return f"<p style='{'; '.join(styles)}'>{content}</p>"
     return f"<p>{content}</p>"
+
+
+def _paragraph_alignment(paragraph) -> str | None:
+    """Lee w:jc del XML directamente (evita el error de enums de python-docx)."""
+    from docx.oxml.ns import qn
+
+    p_pr = paragraph._p.find(qn("w:pPr"))
+    if p_pr is None:
+        return None
+    jc = p_pr.find(qn("w:jc"))
+    if jc is None:
+        return None
+    value = jc.get(qn("w:val"))
+    align_map = {
+        "start": "left",
+        "end": "right",
+        "left": "left",
+        "center": "center",
+        "right": "right",
+        "justify": "justify",
+        "both": "justify",
+        "distribute": "justify",
+    }
+    return align_map.get(value)
 
 
 def _emu_to_px(value) -> int:
@@ -223,8 +250,11 @@ def _load_docx_standard(editor: QTextEdit, path: str | Path) -> None:
     for child in body.iterchildren():
         if child.tag.endswith("}p"):
             paragraph = Paragraph(child, doc)
-            style = paragraph.style.name or ""
-            content = _paragraph_runs_html(paragraph, doc)
+            try:
+                style = paragraph.style.name or ""
+            except (KeyError, ValueError):
+                style = ""
+            content = _safe_runs_html(paragraph, doc)
             if "List Bullet" in style:
                 if list_kind != "ul":
                     if list_kind == "ol":
