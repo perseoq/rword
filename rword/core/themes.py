@@ -64,6 +64,11 @@ def apply_theme(editor: QTextEdit, theme: Theme) -> None:
     palette.setColor(QPalette.ColorRole.Text, QColor(theme.text_color))
     editor.setPalette(palette)
 
+    viewport_palette = editor.viewport().palette()
+    viewport_palette.setColor(QPalette.ColorRole.Base, QColor(theme.page_color))
+    viewport_palette.setColor(QPalette.ColorRole.Text, QColor(theme.text_color))
+    editor.viewport().setPalette(viewport_palette)
+
     document = editor.document()
     document.setDefaultFont(
         QFont(theme.font_family, int(theme.font_size))
@@ -71,10 +76,6 @@ def apply_theme(editor: QTextEdit, theme: Theme) -> None:
     document.setDefaultStyleSheet(
         f"body {{ color: {theme.text_color}; }}"
     )
-    if theme.name != "Claro":
-        editor.setStyleSheet(f"QTextEdit {{ background-color: {theme.page_color}; }}")
-    else:
-        editor.setStyleSheet("")
 
 
 class ThemeManager:

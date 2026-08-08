@@ -60,6 +60,10 @@ class PageView(QScrollArea):
         palette.setColor(QPalette.ColorRole.Base, QColor(color))
         palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
         self._editor.setPalette(palette)
+        viewport_palette = self._editor.viewport().palette()
+        viewport_palette.setColor(QPalette.ColorRole.Base, QColor(color))
+        viewport_palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
+        self._editor.viewport().setPalette(viewport_palette)
 
     def refresh(self) -> None:
         self._relayout()
