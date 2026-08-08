@@ -6,7 +6,7 @@ from rword.ui.ribbon import RibbonGroup
 
 def test_ribbon_tabs(main_window):
     titles = main_window.ribbon.tab_titles()
-    assert "Inicio" in titles
+    assert "Edición" in titles
     assert "Insertar" in titles
     assert "Diseño de página" in titles
     assert "IA" in titles
@@ -68,12 +68,12 @@ def test_set_current_tab(main_window):
 
 
 def test_set_group_visible(main_window):
-    main_window.ribbon.set_group_visible("Inicio", "Párrafo", False)
+    main_window.ribbon.set_group_visible("Edición", "Párrafo", False)
     tab = main_window.ribbon._stack.widget(0)
     for group in tab._groups:
         if group.title == "Párrafo":
             assert not group.isVisible()
-    main_window.ribbon.set_group_visible("Inicio", "Párrafo", True)
+    main_window.ribbon.set_group_visible("Edición", "Párrafo", True)
 
 
 def test_add_ribbon_action_plugin(main_window):

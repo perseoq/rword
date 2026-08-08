@@ -1382,6 +1382,17 @@ class MainWindow(QMainWindow):
         self.field_menu.aboutToShow.connect(self._rebuild_field_menu)
         self.margins_menu = QMenu("Márgenes", self)
         self.margins_menu.aboutToShow.connect(self._rebuild_margins_menu)
+        self.export_menu = QMenu("Exportar", self)
+        for action in (
+            self.export_pdf_action,
+            self.export_html_action,
+            self.export_rtf_action,
+            self.export_odt_action,
+            self.export_epub_action,
+            self.export_text_action,
+        ):
+            self.export_menu.addAction(action)
+
         self.shapes_menu = QMenu("Formas", self)
         for action in self.shape_actions.values():
             self.shapes_menu.addAction(action)
@@ -1424,7 +1435,18 @@ class MainWindow(QMainWindow):
             self.ai_premium_menu.addAction(action)
 
     def _build_tab_inicio(self) -> None:
-        tab = self.ribbon.add_tab("Inicio")
+        tab = self.ribbon.add_tab("Edición")
+
+        archivo = tab.add_group("Archivo")
+        self._ribbon_button(archivo, self.new_action, "file-plus", large=True)
+        self._ribbon_button(archivo, self.open_action, "folder-open", large=True)
+        self._ribbon_button(archivo, self.save_action, "save", large=True)
+        self._ribbon_button(archivo, self.save_as_action, "files", large=True)
+        archivo.add_separator()
+        self._ribbon_button(archivo, self.close_action, "x")
+        self._ribbon_button(archivo, self.print_action, "printer")
+        self._ribbon_button(archivo, self.print_preview_action, "eye")
+        self._ribbon_dropdown(archivo, "Exportar", "file-text", self.export_menu)
 
         portapapeles = tab.add_group("Portapapeles")
         self._ribbon_button(portapapeles, self.cut_action, "scissors")
@@ -2027,10 +2049,10 @@ class MainWindow(QMainWindow):
         self.ribbon.setVisible(checked)
 
     def _toggle_formatbar(self, checked: bool) -> None:
-        self.ribbon.set_group_visible("Inicio", "Fuente", checked)
+        self.ribbon.set_group_visible("Edición", "Fuente", checked)
 
     def _toggle_paragraphbar(self, checked: bool) -> None:
-        self.ribbon.set_group_visible("Inicio", "Párrafo", checked)
+        self.ribbon.set_group_visible("Edición", "Párrafo", checked)
 
     def _print_document(self) -> None:
         from rword.core.export import print_document
@@ -2064,7 +2086,7 @@ class MainWindow(QMainWindow):
         )
 
     def _toggle_drawingbar(self, checked: bool) -> None:
-        self.ribbon.set_group_visible("Inicio", "Dibujo", checked)
+        self.ribbon.set_group_visible("Edición", "Dibujo", checked)
         if not checked:
             self._editor.set_drawing(False)
             self.drawing_bar.enable_action.setChecked(False)
