@@ -39,7 +39,7 @@ PySide6 (Qt for Python).
 | 30 | **IA — Automatización y productividad** | Índices, tablas/listas, Mermaid, JSON/XML/YAML, detección de fechas/personas/datos, marketing, tareas | ✅ Implementada |
 | 31 | **IA — Premium y pulido final** | Agentes especializados, estilo del usuario, OCR, extracción PDF, generación de imágenes, "escribir como", inspector de coherencia, anexos | ✅ Implementada |
 
-**Total: 31 fases** (1 completada, 30 pendientes).
+**Total: 31 fases** (31 completadas, 0 pendientes).
 
 ## Metodología de ejecución
 

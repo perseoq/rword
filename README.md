@@ -5,10 +5,26 @@ PySide6 (Qt for Python).
 
 ## Estado
 
-- **Fase 1 — Implementada**: arquitectura base, ventana principal, gestión de
-  documentos (nuevo/abrir/guardar/guardar como/cerrar), edición básica
-  (deshacer/rehacer/cortar/copiar/pegar/seleccionar todo), barra de estado con
-  recuento de palabras y persistencia de preferencias.
+**31 fases completadas** de 31. Consulte `ROADMAP.md` para el detalle de cada fase.
+
+Resumen de capacidades:
+
+- **Editor**: gestión de documentos, edición, formato de fuente y párrafo,
+  estilos y temas, diseño de página, tablas, imágenes, formas, WordArt,
+  hipervínculos y marcadores, encabezados y pies, referencias (TOC, notas,
+  citas, bibliografía), comentarios y control de cambios, corrector y
+  diccionario, símbolos/gráficos/SmartArt/ecuaciones, dibujo a mano alzada,
+  vistas y zoom, impresión y exportación (PDF/HTML/ODT/RTF/TXT/EPUB),
+  formularios interactivos, seguridad y cifrado, macros, combinación de
+  correspondencia, colaboración, accesibilidad y personalización.
+- **IA (DeepSeek)**: escritura inteligente, corrección avanzada, traducción y
+  análisis, chat contextual sobre el documento, dominios especializados
+  (legal, programación, educación, negocios, investigación), automatización,
+  productividad, marketing y funciones premium (estilo del usuario, agentes,
+  coherencia, glosario, autocompletado).
+
+Para usar las funciones de IA necesita una clave de API de DeepSeek, que se
+configura en el menú **IA → Configurar clave de API**.
 
 ## Requisitos
 
@@ -49,12 +65,10 @@ rword/
 ├── rword/
 │   ├── app.py            # Bootstrap de la aplicación
 │   ├── config.py         # Constantes de la aplicación
-│   ├── core/
-│   │   └── document.py   # Modelo de documento
-│   └── ui/
-│       ├── main_window.py
-│       ├── editor.py
-│       └── ...
+│   ├── core/             # Lógica de dominio (formato, tablas, IA, etc.)
+│   │   └── ai/           # Cliente DeepSeek y capacidades de IA
+│   └── ui/               # Widgets, barras, paneles y diálogos
+├── plugins/              # Complementos opcionales
 ├── tests/
 └── pyproject.toml
 ```
