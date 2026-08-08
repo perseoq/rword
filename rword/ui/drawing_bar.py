@@ -15,14 +15,16 @@ from PySide6.QtWidgets import (
 )
 
 from rword.ui.editor import Editor
+from rword.ui.icons import IconManager, icon_color_for
 
 
 class DrawingBar(QWidget):
     """Fila de dibujo: herramienta, grosor, color y activación."""
 
-    def __init__(self, editor: Editor, parent=None) -> None:
+    def __init__(self, editor: Editor, parent=None, icon_manager=None) -> None:
         super().__init__(parent)
         self._editor = editor
+        self._icons = icon_manager or IconManager(icon_color_for(self))
         self._color = QColor("#000000")
         self._width = 2.0
         self._layout = QHBoxLayout(self)
@@ -48,11 +50,13 @@ class DrawingBar(QWidget):
 
         self.color_action = QAction("Color...", self)
         self.color_action.triggered.connect(self._choose_color)
+        self._icons.register(self.color_action, "palette", 16)
         self._layout.addWidget(self._action_button(self.color_action))
 
         self.enable_action = QAction("Activar dibujo", self)
         self.enable_action.setCheckable(True)
         self.enable_action.toggled.connect(self._toggle)
+        self._icons.register(self.enable_action, "paintbrush", 16)
         self._layout.addWidget(self._action_button(self.enable_action))
 
     def _action_button(self, action: QAction):

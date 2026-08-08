@@ -14,19 +14,25 @@ from PySide6.QtWidgets import (
 
 from rword.core import paragraph
 from rword.ui.editor import Editor
+from rword.ui.icons import IconManager, icon_color_for
 
 
 class ParagraphBar(QWidget):
     """Fila de controles de párrafo: alineación, listas, sangrías y espaciado."""
 
-    def __init__(self, editor: Editor, parent=None) -> None:
+    def __init__(self, editor: Editor, parent=None, icon_manager=None) -> None:
         super().__init__(parent)
         self._editor = editor
+        self._icons = icon_manager or IconManager(icon_color_for(self))
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(2, 0, 2, 0)
         self._layout.setSpacing(2)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._build()
+
+    def _icon(self, action: QAction, name: str) -> QAction:
+        self._icons.register(action, name, 16)
+        return action
 
     def _add_button(self, action: QAction) -> QToolButton:
         button = QToolButton(self)
@@ -45,10 +51,10 @@ class ParagraphBar(QWidget):
         self._layout.addWidget(line)
 
     def _build(self) -> None:
-        self.align_left_action = self._add_alignment("Alinear izquierda", "left")
-        self.align_center_action = self._add_alignment("Centrar", "center")
-        self.align_right_action = self._add_alignment("Alinear derecha", "right")
-        self.align_justify_action = self._add_alignment("Justificar", "justify")
+        self.align_left_action = self._add_alignment("Alinear izquierda", "left", "align-left")
+        self.align_center_action = self._add_alignment("Centrar", "center", "align-center")
+        self.align_right_action = self._add_alignment("Alinear derecha", "right", "align-right")
+        self.align_justify_action = self._add_alignment("Justificar", "justify", "align-justify")
 
         self._add_separator()
 
@@ -56,13 +62,13 @@ class ParagraphBar(QWidget):
         self.bullets_action.triggered.connect(
             lambda: paragraph.toggle_bullets(self._editor)
         )
-        self._add_button(self.bullets_action)
+        self._add_button(self._icon(self.bullets_action, "list"))
 
         self.numbering_action = QAction("Numeración", self)
         self.numbering_action.triggered.connect(
             lambda: paragraph.toggle_numbering(self._editor)
         )
-        self._add_button(self.numbering_action)
+        self._add_button(self._icon(self.numbering_action, "list-ordered"))
 
         self._add_separator()
 
@@ -70,19 +76,19 @@ class ParagraphBar(QWidget):
         self.indent_more_action.triggered.connect(
             lambda: paragraph.increase_indent(self._editor)
         )
-        self._add_button(self.indent_more_action)
+        self._add_button(self._icon(self.indent_more_action, "indent-increase"))
 
         self.indent_less_action = QAction("Disminuir sangría", self)
         self.indent_less_action.triggered.connect(
             lambda: paragraph.decrease_indent(self._editor)
         )
-        self._add_button(self.indent_less_action)
+        self._add_button(self._icon(self.indent_less_action, "indent-decrease"))
 
         self._add_separator()
 
-        self.spacing_single_action = self._add_spacing("Interlineado sencillo", 1.0)
-        self.spacing_1_5_action = self._add_spacing("Interlineado 1,5", 1.5)
-        self.spacing_double_action = self._add_spacing("Interlineado doble", 2.0)
+        self.spacing_single_action = self._add_spacing("Interlineado sencillo", 1.0, "align-left")
+        self.spacing_1_5_action = self._add_spacing("Interlineado 1,5", 1.5, "align-center")
+        self.spacing_double_action = self._add_spacing("Interlineado doble", 2.0, "align-right")
 
         self._alignment_actions = [
             (self.align_left_action, Qt.AlignmentFlag.AlignLeft),
@@ -92,21 +98,25 @@ class ParagraphBar(QWidget):
         ]
         self._editor.cursorPositionChanged.connect(self._sync)
 
-    def _add_alignment(self, label, name):
+    def _add_alignment(self, label, name, icon_name=""):
         action = QAction(label, self)
         action.setCheckable(True)
         action.triggered.connect(
             lambda checked, a=name: paragraph.set_alignment(self._editor, a)
         )
+        if icon_name:
+            self._icon(action, icon_name)
         self._add_button(action)
         return action
 
-    def _add_spacing(self, label, factor):
+    def _add_spacing(self, label, factor, icon_name=""):
         action = QAction(label, self)
         action.setCheckable(True)
         action.triggered.connect(
             lambda checked, f=factor: paragraph.set_line_spacing(self._editor, f)
         )
+        if icon_name:
+            self._icon(action, icon_name)
         self._add_button(action)
         return action
 

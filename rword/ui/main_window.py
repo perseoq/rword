@@ -133,7 +133,13 @@ class MainWindow(QMainWindow):
         self._central_layout.addWidget(self._ruler, 0, 1)
         self._central_layout.addWidget(self._vruler, 1, 0)
         self._central_layout.addWidget(self._page_view, 1, 1)
-        self.setCentralWidget(self._central)
+
+        self._root = QWidget(self)
+        self._root_layout = QVBoxLayout(self._root)
+        self._root_layout.setContentsMargins(0, 0, 0, 0)
+        self._root_layout.setSpacing(0)
+        self._root_layout.addWidget(self._central, 1)
+        self.setCentralWidget(self._root)
         self._splitter: QSplitter | None = None
         self._build_actions()
         self._icon_manager = IconManager(icon_color_for(self))
@@ -1347,7 +1353,7 @@ class MainWindow(QMainWindow):
 
     def _build_ribbon(self) -> None:
         self.ribbon = RibbonBar(self._icon_manager, self)
-        self.setMenuWidget(self.ribbon)
+        self._root_layout.insertWidget(0, self.ribbon)
         self._build_dynamic_menus()
         self._build_tab_inicio()
         self._build_tab_insertar()
@@ -1436,11 +1442,11 @@ class MainWindow(QMainWindow):
         self._ribbon_button(edicion, self.go_to_action, "corner-down-right")
         self._ribbon_dropdown(edicion, "Seleccionar", "check-square", self._selection_menu())
 
-        self.format_bar = FormatBar(self._editor, tab)
+        self.format_bar = FormatBar(self._editor, tab, self._icon_manager)
         fuente = tab.add_group("Fuente")
         fuente.add_widget(self.format_bar)
 
-        self.paragraph_bar = ParagraphBar(self._editor, tab)
+        self.paragraph_bar = ParagraphBar(self._editor, tab, self._icon_manager)
         parrafo = tab.add_group("Párrafo")
         parrafo.add_widget(self.paragraph_bar)
 
@@ -1450,7 +1456,7 @@ class MainWindow(QMainWindow):
         self._ribbon_button(estilos, self.create_style_action, "sparkles")
         self._ribbon_button(estilos, self.organizer_action, "layers")
 
-        self.drawing_bar = DrawingBar(self._editor, tab)
+        self.drawing_bar = DrawingBar(self._editor, tab, self._icon_manager)
         dibujo = tab.add_group("Dibujo")
         dibujo.add_widget(self.drawing_bar)
 

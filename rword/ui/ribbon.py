@@ -100,7 +100,7 @@ class RibbonTab(QWidget):
         layout.setSpacing(0)
 
         self._scroll = QScrollArea(self)
-        self._scroll.setWidgetResizable(False)
+        self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
@@ -108,6 +108,7 @@ class RibbonTab(QWidget):
         self._scroll.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.setFixedHeight(_CONTENT_HEIGHT + _CAPTION_HEIGHT)
         self._content = QWidget()
         self._content_layout = QHBoxLayout(self._content)
         self._content_layout.setContentsMargins(4, 0, 4, 0)
@@ -129,7 +130,14 @@ class RibbonTab(QWidget):
         self._scroll.horizontalScrollBar().valueChanged.connect(
             self._sync_chevrons
         )
+        self._scroll.horizontalScrollBar().rangeChanged.connect(
+            lambda *_: self._sync_chevrons()
+        )
         self._hide_chevrons()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._sync_chevrons()
 
     def _make_chevron(self, icon_name: str) -> QToolButton:
         button = QToolButton(self)
@@ -195,11 +203,13 @@ class RibbonBar(QWidget):
         self._tab_bar = QTabBar(self)
         self._tab_bar.setDocumentMode(True)
         self._tab_bar.setExpanding(False)
+        self._tab_bar.setMinimumHeight(28)
         self._layout.addWidget(self._tab_bar)
 
         self._stack = QStackedWidget(self)
         self._layout.addWidget(self._stack)
         self._tab_bar.currentChanged.connect(self._stack.setCurrentIndex)
+        self.setFixedHeight(28 + _CONTENT_HEIGHT + _CAPTION_HEIGHT)
 
         self.setStyleSheet(
             "QTabBar::tab { padding: 5px 14px; font-size: 10px; }"

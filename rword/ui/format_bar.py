@@ -17,19 +17,25 @@ from PySide6.QtWidgets import (
 
 from rword.core import formatting
 from rword.ui.editor import Editor
+from rword.ui.icons import IconManager, icon_color_for
 
 
 class FormatBar(QWidget):
     """Fila de controles de fuente (combo, tamaño y estilos de texto)."""
 
-    def __init__(self, editor: Editor, parent=None) -> None:
+    def __init__(self, editor: Editor, parent=None, icon_manager=None) -> None:
         super().__init__(parent)
         self._editor = editor
+        self._icons = icon_manager or IconManager(icon_color_for(self))
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(2, 0, 2, 0)
         self._layout.setSpacing(2)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._build()
+
+    def _icon(self, action: QAction, name: str) -> QAction:
+        self._icons.register(action, name, 16)
+        return action
 
     def _add_button(self, action: QAction, text: bool = False) -> QToolButton:
         button = QToolButton(self)
@@ -70,24 +76,30 @@ class FormatBar(QWidget):
         self.grow_action.triggered.connect(
             lambda: formatting.change_font_size(self._editor, 1.0)
         )
-        self._add_button(self.grow_action)
+        self._add_button(self._icon(self.grow_action, "maximize"))
 
         self.shrink_action = QAction("Disminuir tamaño", self)
         self.shrink_action.triggered.connect(
             lambda: formatting.change_font_size(self._editor, -1.0)
         )
-        self._add_button(self.shrink_action)
+        self._add_button(self._icon(self.shrink_action, "minimize"))
 
         self._add_separator()
 
-        self.bold_action = self._add_toggle("Negrita", formatting._is_bold)
-        self.italic_action = self._add_toggle("Cursiva", formatting._is_italic)
-        self.underline_action = self._add_toggle("Subrayado", formatting._is_underline)
-        self.strike_action = self._add_toggle("Tachado", formatting._is_strikeout)
-        self.superscript_action = self._add_toggle(
-            "Superíndice", formatting._is_superscript
+        self.bold_action = self._add_toggle("Negrita", formatting._is_bold, "bold")
+        self.italic_action = self._add_toggle("Cursiva", formatting._is_italic, "italic")
+        self.underline_action = self._add_toggle(
+            "Subrayado", formatting._is_underline, "underline"
         )
-        self.subscript_action = self._add_toggle("Subíndice", formatting._is_subscript)
+        self.strike_action = self._add_toggle(
+            "Tachado", formatting._is_strikeout, "strikethrough"
+        )
+        self.superscript_action = self._add_toggle(
+            "Superíndice", formatting._is_superscript, "superscript"
+        )
+        self.subscript_action = self._add_toggle(
+            "Subíndice", formatting._is_subscript, "subscript"
+        )
         self._toggle_actions = [
             (self.bold_action, formatting._is_bold, formatting.toggle_bold),
             (self.italic_action, formatting._is_italic, formatting.toggle_italic),
@@ -103,22 +115,24 @@ class FormatBar(QWidget):
 
         self.color_action = QAction("Color de texto...", self)
         self.color_action.triggered.connect(self._choose_text_color)
-        self._add_button(self.color_action)
+        self._add_button(self._icon(self.color_action, "palette"))
 
         self.highlight_action = QAction("Resaltado...", self)
         self.highlight_action.triggered.connect(self._choose_highlight)
-        self._add_button(self.highlight_action)
+        self._add_button(self._icon(self.highlight_action, "highlighter"))
 
         self.clear_format_action = QAction("Borrar formato", self)
         self.clear_format_action.triggered.connect(self._clear_format)
-        self._add_button(self.clear_format_action)
+        self._add_button(self._icon(self.clear_format_action, "eraser"))
 
         self._editor.currentCharFormatChanged.connect(self._on_char_format_changed)
         self._editor.cursorPositionChanged.connect(self._sync_from_cursor)
 
-    def _add_toggle(self, label, is_active, shortcut: str = ""):
+    def _add_toggle(self, label, is_active, icon_name="", shortcut: str = ""):
         action = QAction(label, self)
         action.setCheckable(True)
+        if icon_name:
+            self._icon(action, icon_name)
         self._add_button(action)
         return action
 
