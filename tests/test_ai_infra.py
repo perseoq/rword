@@ -86,9 +86,8 @@ def test_ai_error_message():
 
 
 def test_main_window_api_key(main_window):
-    from rword.ui.dialogs.api_key import ApiKeyDialog
-
     from rword.core.ai.config import ApiKeyManager
+    from rword.ui.dialogs.api_key import ApiKeyDialog
 
     dialog = ApiKeyDialog(ApiKeyManager(main_window._settings), main_window)
     assert dialog.windowTitle() == "Clave de API de DeepSeek"

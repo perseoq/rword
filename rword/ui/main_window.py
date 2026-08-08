@@ -986,6 +986,85 @@ class MainWindow(QMainWindow):
         self.ai_about_action = QAction("Acerca de la IA...", self)
         self.ai_about_action.triggered.connect(self._ai_about)
 
+        self.ai_redact_action = QAction("Redactar desde instrucción...", self)
+        self.ai_redact_action.triggered.connect(self._ai_redact)
+
+        self.ai_continue_action = QAction("Continuar escribiendo", self)
+        self.ai_continue_action.triggered.connect(
+            lambda: self._ai_context("continue_writing")
+        )
+
+        self.ai_complete_action = QAction("Completar frase", self)
+        self.ai_complete_action.triggered.connect(
+            lambda: self._ai_context("complete_sentence")
+        )
+
+        self.ai_rewrite_action = QAction("Reescribir...", self)
+        self.ai_rewrite_action.triggered.connect(self._ai_rewrite)
+
+        self.ai_summarize_action = QAction("Resumir", self)
+        self.ai_summarize_action.triggered.connect(
+            lambda: self._ai_context("summarize")
+        )
+
+        self.ai_expand_action = QAction("Expandir texto", self)
+        self.ai_expand_action.triggered.connect(
+            lambda: self._ai_context("expand")
+        )
+
+        self.ai_reduce_action = QAction("Reducir texto", self)
+        self.ai_reduce_action.triggered.connect(
+            lambda: self._ai_context("reduce_text")
+        )
+
+        self.ai_simplify_action = QAction("Simplificar lenguaje", self)
+        self.ai_simplify_action.triggered.connect(
+            lambda: self._ai_context("simplify")
+        )
+
+        self.ai_correct_action = QAction("Corregir ortografía y gramática", self)
+        self.ai_correct_action.triggered.connect(
+            lambda: self._ai_context("correct", "replace_selection")
+        )
+
+        self.ai_redundancies_action = QAction("Detectar redundancias", self)
+        self.ai_redundancies_action.triggered.connect(
+            lambda: self._ai_context("detect_redundancies", "insert")
+        )
+
+        self.ai_suggest_words_action = QAction("Sugerir mejores palabras", self)
+        self.ai_suggest_words_action.triggered.connect(
+            lambda: self._ai_context("suggest_better_words", "insert")
+        )
+
+        self.ai_fluidity_action = QAction("Mejorar fluidez y cohesión", self)
+        self.ai_fluidity_action.triggered.connect(
+            lambda: self._ai_context("improve_fluidity", "replace_selection")
+        )
+
+        self.ai_clarity_action = QAction("Mejorar claridad", self)
+        self.ai_clarity_action.triggered.connect(
+            lambda: self._ai_context("improve_clarity", "replace_selection")
+        )
+
+        self.ai_ambiguity_action = QAction("Detectar ambigüedades", self)
+        self.ai_ambiguity_action.triggered.connect(
+            lambda: self._ai_context("detect_ambiguities", "insert")
+        )
+
+        self.ai_tones = {}
+        for label, function in {
+            "Formal": "make_professional",
+            "Persuasivo": "make_persuasive",
+            "Amigable": "make_friendly",
+            "Neutral": "make_neutral",
+        }.items():
+            action = QAction(label, self)
+            action.triggered.connect(
+                lambda checked=False, fn=function: self._ai_context(fn, "replace_selection")
+            )
+            self.ai_tones[label] = action
+
         self.toggle_toolbar_action = QAction("Barra de herramientas", self)
         self.toggle_toolbar_action.setCheckable(True)
         self.toggle_toolbar_action.setChecked(True)
@@ -1352,6 +1431,27 @@ class MainWindow(QMainWindow):
         ai_menu = self.menuBar().addMenu("&IA")
         ai_menu.addAction(self.api_key_action)
         ai_menu.addAction(self.ai_about_action)
+        ai_menu.addSeparator()
+        writing_menu = ai_menu.addMenu("&Escritura")
+        writing_menu.addAction(self.ai_redact_action)
+        writing_menu.addAction(self.ai_continue_action)
+        writing_menu.addAction(self.ai_complete_action)
+        writing_menu.addAction(self.ai_rewrite_action)
+        writing_menu.addSeparator()
+        writing_menu.addAction(self.ai_summarize_action)
+        writing_menu.addAction(self.ai_expand_action)
+        writing_menu.addAction(self.ai_reduce_action)
+        writing_menu.addAction(self.ai_simplify_action)
+        tone_menu = writing_menu.addMenu("&Cambiar tono")
+        for action in self.ai_tones.values():
+            tone_menu.addAction(action)
+        correction_menu = ai_menu.addMenu("&Corrección")
+        correction_menu.addAction(self.ai_correct_action)
+        correction_menu.addAction(self.ai_redundancies_action)
+        correction_menu.addAction(self.ai_suggest_words_action)
+        correction_menu.addAction(self.ai_fluidity_action)
+        correction_menu.addAction(self.ai_clarity_action)
+        correction_menu.addAction(self.ai_ambiguity_action)
         self.ai_menu = ai_menu
 
         view_menu = self.menuBar().addMenu("&Ver")
@@ -3115,6 +3215,51 @@ class MainWindow(QMainWindow):
         else:
             self._editor.insertPlainText(result)
         self.statusBar().showMessage("Operación de IA completada.", 3000)
+
+    def _ai_context(self, function: str, insert_mode: str = "insert") -> None:
+        from rword.core.ai import capabilities
+        from rword.core.ai.session import document_context
+
+        client = self._ai_client()
+        context = document_context(self._editor)
+        operation = getattr(capabilities, function)
+        self._ai_run_and_apply(
+            lambda fn=operation, c=context: fn(client, c),
+            insert_mode,
+        )
+
+    def _ai_redact(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.ai import capabilities
+
+        instruction, ok = QInputDialog.getText(
+            self, "Redactar con IA", "Instrucción:"
+        )
+        if not ok or not instruction.strip():
+            return
+        client = self._ai_client()
+        self._ai_run_and_apply(
+            lambda: capabilities.redact(client, instruction.strip())
+        )
+
+    def _ai_rewrite(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from rword.core.ai import capabilities
+        from rword.core.ai.session import document_context
+
+        instruction, ok = QInputDialog.getText(
+            self, "Reescribir con IA", "Indicación (p. ej. hazlo más técnico):"
+        )
+        if not ok:
+            return
+        client = self._ai_client()
+        context = document_context(self._editor)
+        self._ai_run_and_apply(
+            lambda: capabilities.rewrite(client, context, instruction.strip()),
+            "replace_selection",
+        )
 
     def _refresh_navigation(self) -> None:
         if self._navigation_panel is not None:

@@ -31,6 +31,16 @@ def main_window(qapp, tmp_path, monkeypatch):
         "question",
         staticmethod(lambda *args, **kwargs: QMessageBox.StandardButton.Discard),
     )
+    monkeypatch.setattr(
+        QMessageBox,
+        "critical",
+        staticmethod(lambda *args, **kwargs: QMessageBox.StandardButton.Ok),
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "information",
+        staticmethod(lambda *args, **kwargs: QMessageBox.StandardButton.Ok),
+    )
     window = MainWindow()
     yield window
     window.close()
