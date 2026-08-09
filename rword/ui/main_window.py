@@ -51,7 +51,6 @@ from rword.core.margin_templates import (
     apply_margins,
 )
 from rword.core.pages import apply_page_setup, current_page_setup
-from rword.core.preferences import DARK_STYLESHEET
 from rword.core.styles import FormatPainter, Style, StyleManager
 from rword.core.tables import TABLE_STYLES
 from rword.core.themes import ThemeManager, apply_theme
@@ -966,33 +965,6 @@ class MainWindow(QMainWindow):
             self._settings, Path(__file__).resolve().parent.parent.parent / "plugins"
         )
 
-        self.data_source_action = QAction("Seleccionar origen de datos...", self)
-        self.data_source_action.triggered.connect(self._select_data_source)
-
-        self.insert_field_action = QAction("Insertar campo", self)
-        self.insert_field_action.triggered.connect(self._insert_merge_field)
-
-        self.preview_merge_action = QAction("Vista previa de resultados...", self)
-        self.preview_merge_action.triggered.connect(self._preview_merge)
-
-        self.filter_merge_action = QAction("Filtrar destinatarios...", self)
-        self.filter_merge_action.triggered.connect(self._filter_records)
-
-        self.sort_merge_action = QAction("Ordenar destinatarios...", self)
-        self.sort_merge_action.triggered.connect(self._sort_records)
-
-        self.generate_letters_action = QAction("Generar cartas...", self)
-        self.generate_letters_action.triggered.connect(self._generate_letters)
-
-        self.generate_labels_action = QAction("Generar etiquetas...", self)
-        self.generate_labels_action.triggered.connect(self._generate_labels)
-
-        self.generate_envelopes_action = QAction("Generar sobres...", self)
-        self.generate_envelopes_action.triggered.connect(self._generate_envelopes)
-
-        self.email_merge_action = QAction("Enviar por correo...", self)
-        self.email_merge_action.triggered.connect(self._send_email)
-
         self.collab_dialog_action = QAction("Colaboración...", self)
         self.collab_dialog_action.triggered.connect(self._show_collaboration)
 
@@ -1008,24 +980,8 @@ class MainWindow(QMainWindow):
         self.presence_action.setChecked(True)
         self.presence_action.triggered.connect(self._toggle_presence)
 
-        self.check_accessibility_action = QAction("Comprobar accesibilidad...", self)
-        self.check_accessibility_action.triggered.connect(self._check_accessibility)
-
-        self.alt_text_action = QAction("Texto alternativo de imagen...", self)
-        self.alt_text_action.triggered.connect(self._set_alt_text)
-
-        self.read_aloud_action = QAction("Leer en voz alta", self)
-        self.read_aloud_action.triggered.connect(self._read_aloud)
-
-        self.stop_reading_action = QAction("Detener lectura", self)
-        self.stop_reading_action.triggered.connect(self._stop_reading)
-
         self.high_contrast_action = QAction("Tema de alto contraste", self)
         self.high_contrast_action.triggered.connect(self._apply_high_contrast)
-
-        self.immersive_action = QAction("Enfoque inmersivo", self)
-        self.immersive_action.setCheckable(True)
-        self.immersive_action.triggered.connect(self._toggle_immersive)
 
         self.preferences_action = QAction("Preferencias...", self)
         self.preferences_action.triggered.connect(self._show_preferences)
@@ -1197,18 +1153,11 @@ class MainWindow(QMainWindow):
         self.ai_chat_panel_action.setCheckable(True)
         self.ai_chat_panel_action.triggered.connect(self._toggle_ai_chat)
 
+        self.legal_documents_action = QAction("Legal", self)
+        self.legal_documents_action.triggered.connect(self._ai_legal_documents)
+
         self._ai_specialized = {}
         for menu_name, items in {
-            "&Legal": [
-                ("Redactar contrato...", "draft_contract",
-                    "Instrucción del contrato:", "prompt_context"),
-                ("Revisar cláusulas abusivas", "review_clauses", None, "context"),
-                ("Detectar riesgos legales", "legal_risks", None, "context"),
-                ("Explicar artículo...", "explain_law", "Artículo o norma:", "prompt"),
-                ("Comparar contratos...", "compare_contracts",
-                    "Texto del segundo contrato:", "prompt_compare"),
-                ("Resumir contrato", "summarize_contract", None, "context"),
-            ],
             "&Investigación": [
                 ("Investigar tema...", "research", "Tema:", "prompt"),
                 ("Generar bibliografía", "generate_bibliography", None, "context"),
@@ -1335,10 +1284,8 @@ class MainWindow(QMainWindow):
         self._build_tab_referencias()
         self._build_tab_revision()
         self._build_tab_vista()
-        self._build_tab_correspondencia()
         self._build_tab_automatizacion()
         self._build_tab_colab_seguridad()
-        self._build_tab_accesibilidad()
         self._build_tab_ia()
         self._build_tab_ayuda()
         self.ribbon.set_current_tab(0)
@@ -1352,8 +1299,6 @@ class MainWindow(QMainWindow):
         self.theme_menu.aboutToShow.connect(self._rebuild_theme_menu)
         self.automation_menu = QMenu("Macros", self)
         self.automation_menu.aboutToShow.connect(self._rebuild_macro_shortcuts)
-        self.field_menu = QMenu("Insertar campo", self)
-        self.field_menu.aboutToShow.connect(self._rebuild_field_menu)
         self.margins_menu = QMenu("Márgenes", self)
         self.margins_menu.aboutToShow.connect(self._rebuild_margins_menu)
         self.export_menu = QMenu("Exportar", self)
@@ -1615,24 +1560,6 @@ class MainWindow(QMainWindow):
         self._ribbon_button(cinta, self.toggle_formatbar_action, "type")
         self._ribbon_button(cinta, self.toggle_paragraphbar_action, "align-left")
 
-    def _build_tab_correspondencia(self) -> None:
-        tab = self.ribbon.add_tab("Correspondencia")
-
-        iniciar = tab.add_group("Iniciar")
-        self._ribbon_button(iniciar, self.data_source_action, "database", large=True)
-        self._ribbon_dropdown(iniciar, "Insertar campo", "type", self.field_menu)
-        self._ribbon_button(iniciar, self.preview_merge_action, "eye")
-
-        filtrar = tab.add_group("Filtrar")
-        self._ribbon_button(filtrar, self.filter_merge_action, "filter")
-        self._ribbon_button(filtrar, self.sort_merge_action, "sort-asc")
-
-        generar = tab.add_group("Generar")
-        self._ribbon_button(generar, self.generate_letters_action, "file-text", large=True)
-        self._ribbon_button(generar, self.generate_labels_action, "list")
-        self._ribbon_button(generar, self.generate_envelopes_action, "send")
-        self._ribbon_button(generar, self.email_merge_action, "mail")
-
     def _build_tab_automatizacion(self) -> None:
         tab = self.ribbon.add_tab("Automatización")
 
@@ -1683,22 +1610,6 @@ class MainWindow(QMainWindow):
         self._ribbon_button(seguridad, self.inspect_action, "search")
         self._ribbon_button(seguridad, self.remove_personal_action, "eraser")
 
-    def _build_tab_accesibilidad(self) -> None:
-        tab = self.ribbon.add_tab("Accesibilidad")
-
-        comprobar = tab.add_group("Comprobar")
-        self._ribbon_button(comprobar, self.check_accessibility_action, "accessibility", large=True)
-        self._ribbon_button(comprobar, self.alt_text_action, "image")
-
-        leer = tab.add_group("Leer")
-        self._ribbon_button(leer, self.read_aloud_action, "volume-2", large=True)
-        self._ribbon_button(leer, self.stop_reading_action, "square-stop")
-
-        ayuda = tab.add_group("Ayuda visual")
-        self._ribbon_button(ayuda, self.high_contrast_action, "contrast")
-        self._ribbon_button(ayuda, self.immersive_action, "maximize")
-        self._ribbon_button(ayuda, self.toggle_navigation_action, "panel-left")
-
     def _build_tab_ia(self) -> None:
         tab = self.ribbon.add_tab("IA")
 
@@ -1747,11 +1658,10 @@ class MainWindow(QMainWindow):
         self._ribbon_button(seleccion, self.ai_selection_questions_action, "help-circle")
 
         dominios = tab.add_group("Dominios")
-        for label in ("Legal", "Investigación"):
-            key = f"&{label}"
-            menu = self.ai_domain_menus.get(key)
-            if menu is not None:
-                self._ribbon_dropdown(dominios, label, "scale", menu)
+        self._ribbon_button(dominios, self.legal_documents_action, "scale", large=True)
+        menu = self.ai_domain_menus.get("&Investigación")
+        if menu is not None:
+            self._ribbon_dropdown(dominios, "Investigación", "search", menu)
 
         automatizacion = tab.add_group("Automatización IA")
         for label in ("Automatización", "Productividad", "Marketing"):
@@ -3057,227 +2967,6 @@ class MainWindow(QMainWindow):
         if item is not None and remove_variable(self._editor, item.text()):
             var_list.takeItem(var_list.row(item))
 
-    def _select_data_source(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.mailmerge import (
-            data_fields,
-            load_csv,
-            load_sqlite,
-            set_records,
-        )
-
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Origen de datos", "",
-            "CSV (*.csv);;Base de datos SQLite (*.db *.sqlite);;Todos los archivos (*)",
-        )
-        if not file_name:
-            return
-        try:
-            if file_name.endswith(".csv"):
-                records = load_csv(file_name)
-            else:
-                query, ok = QInputDialog.getText(
-                    self, "Base de datos",
-                    "Consulta SQL (p. ej. SELECT * FROM contactos):",
-                    text="SELECT * FROM contactos",
-                )
-                if not ok:
-                    return
-                records = load_sqlite(file_name, query)
-        except Exception as error:
-            self._show_error(f"No se pudieron cargar los datos:\n{error}")
-            return
-        if not records:
-            self._show_error("El origen de datos no contiene registros.")
-            return
-        set_records(self._editor, records, file_name)
-        self._merge_fields = data_fields(records)
-        self.statusBar().showMessage(
-            f"Origen de datos cargado: {len(records)} registros.", 5000
-        )
-
-    def _rebuild_field_menu(self) -> None:
-        self.field_menu.clear()
-        fields = getattr(self, "_merge_fields", [])
-        if not fields:
-            action = self.field_menu.addAction("(sin origen de datos)")
-            action.setEnabled(False)
-            return
-        for field in fields:
-            action = self.field_menu.addAction(f"{{{field}}}")
-            action.triggered.connect(
-                lambda checked=False, f=field: self._insert_merge_field(f)
-            )
-
-    def _insert_merge_field(self, field: str | None = None) -> None:
-        if field is None:
-            from PySide6.QtWidgets import QInputDialog
-
-            from rword.core.mailmerge import data_fields, records_of
-
-            fields = data_fields(records_of(self._editor))
-            if not fields:
-                self._show_error("Seleccione primero un origen de datos.")
-                return
-            field, ok = QInputDialog.getItem(
-                self, "Insertar campo", "Campo:", fields, 0, False
-            )
-            if not ok:
-                return
-        self._editor.insertPlainText("{" + field + "}")
-
-    def _preview_merge(self) -> None:
-        from rword.core.mailmerge import records_of
-        from rword.ui.dialogs.mailmerge import MailMergePreviewDialog
-
-        records = records_of(self._editor)
-        if not records:
-            self._show_error("Seleccione primero un origen de datos.")
-            return
-        dialog = MailMergePreviewDialog(self._editor, records, self)
-        dialog.exec()
-
-    def _filter_records(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.mailmerge import (
-            data_fields,
-            distinct_values,
-            filter_records,
-            records_of,
-            set_records,
-        )
-
-        records = records_of(self._editor)
-        fields = data_fields(records)
-        if not fields:
-            return
-        field, ok = QInputDialog.getItem(
-            self, "Filtrar destinatarios", "Columna:", fields, 0, False
-        )
-        if not ok:
-            return
-        values = distinct_values(records, field)
-        value, ok = QInputDialog.getItem(
-            self, "Filtrar destinatarios", "Valor:", values, 0, False
-        )
-        if ok:
-            filtered = filter_records(records, field, value)
-            set_records(self._editor, filtered)
-            self.statusBar().showMessage(f"{len(filtered)} destinatarios.", 4000)
-
-    def _sort_records(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.mailmerge import (
-            data_fields,
-            records_of,
-            set_records,
-            sort_records,
-        )
-
-        records = records_of(self._editor)
-        fields = data_fields(records)
-        if not fields:
-            return
-        field, ok = QInputDialog.getItem(
-            self, "Ordenar destinatarios", "Columna:", fields, 0, False
-        )
-        if ok:
-            set_records(self._editor, sort_records(records, field))
-
-    def _generate_letters(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.mailmerge import records_of
-
-        records = records_of(self._editor)
-        if not records:
-            self._show_error("Seleccione primero un origen de datos.")
-            return
-        count, ok = QInputDialog.getInt(
-            self, "Generar cartas", "Número de cartas a generar:", len(records),
-            1, len(records),
-        )
-        if not ok:
-            return
-        from rword.core.mailmerge import generate_letters
-
-        combined = generate_letters(self._editor, records[:count])
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Guardar cartas combinadas", "cartas.txt", "Texto (*.txt)"
-        )
-        if file_name:
-            Path(file_name).write_text(combined, encoding="utf-8")
-
-    def _generate_labels(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.mailmerge import (
-            data_fields,
-            generate_labels,
-            records_of,
-        )
-
-        records = records_of(self._editor)
-        fields = data_fields(records)
-        if not fields:
-            return
-        chosen, ok = QInputDialog.getItem(
-            self, "Generar etiquetas", "Campo de la etiqueta:", fields, 0, False
-        )
-        if not ok:
-            return
-        columns, ok = QInputDialog.getInt(
-            self, "Generar etiquetas", "Columnas por fila:", 3, 1, 6
-        )
-        if ok:
-            output = generate_labels(records, [chosen], columns)
-            self._editor.insertPlainText(output)
-
-    def _generate_envelopes(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.mailmerge import (
-            data_fields,
-            generate_envelopes,
-            records_of,
-        )
-
-        records = records_of(self._editor)
-        fields = data_fields(records)
-        if not fields:
-            return
-        chosen, ok = QInputDialog.getItem(
-            self, "Generar sobres", "Campo de dirección:", fields, 0, False
-        )
-        if ok:
-            output = generate_envelopes(self._editor, records, [chosen])
-            self._editor.insertPlainText(output)
-
-    def _send_email(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.mailmerge import mailto_link, records_of
-
-        records = records_of(self._editor)
-        if not records:
-            self._show_error("Seleccione primero un origen de datos.")
-            return
-        subject, ok = QInputDialog.getText(
-            self, "Enviar por correo", "Asunto:", text="Comunicación"
-        )
-        if not ok:
-            return
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
-
-        for record in records[:10]:
-            link = mailto_link(record, subject)
-            if link:
-                QDesktopServices.openUrl(QUrl(link))
-
     def _collaboration_manager(self):
         from rword.core.collaboration import CollaborationManager
 
@@ -3329,84 +3018,26 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_collab_manager"):
             self._collab_manager.log(event, detail)
 
-    def _check_accessibility(self) -> None:
-        from rword.core.accessibility import check_accessibility
-
-        issues = check_accessibility(self._editor)
-        if not issues:
-            QMessageBox.information(
-                self, "Accesibilidad", "El documento supera la comprobación."
-            )
-            return
-        lines = [f"- {category}: {problem}" for category, problem in issues]
-        QMessageBox.information(
-            self,
-            "Comprobador de accesibilidad",
-            f"Se encontraron {len(issues)} problemas:\n\n" + "\n".join(lines[:20]),
-        )
-
-    def _set_alt_text(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        from rword.core.accessibility import (
-            image_alt_text_at_cursor,
-            set_image_alt_text,
-        )
-
-        if not hasattr(self._editor, "file_path"):
-            return
-        current = image_alt_text_at_cursor(self._editor)
-        alt_text, ok = QInputDialog.getText(
-            self, "Texto alternativo", "Descripción de la imagen:", text=current
-        )
-        if ok and not set_image_alt_text(self._editor, alt_text):
-            self._show_error("Coloque el cursor sobre una imagen.")
-
-    def _read_aloud(self) -> None:
-        from rword.core.accessibility import SpeechReader
-
-        if not hasattr(self, "_speech"):
-            self._speech = SpeechReader(self)
-        cursor = self._editor.textCursor()
-        text = cursor.selectedText().replace("\u2029", "\n")
-        if not text:
-            text = self._editor.toPlainText()
-        self._speech.speak(text)
-
-    def _stop_reading(self) -> None:
-        if hasattr(self, "_speech"):
-            self._speech.stop()
-
     def _apply_high_contrast(self) -> None:
         self._apply_theme("Alto contraste")
 
-    def _toggle_immersive(self, checked: bool) -> None:
-        if checked:
-            self.ribbon.hide()
-            self.statusBar().hide()
-        else:
-            self.ribbon.show()
-            self.statusBar().show()
-
     def _apply_saved_preferences(self) -> None:
-        from rword.core.preferences import UserPreferences
+        from rword.core.preferences import UserPreferences, apply_ui_theme
 
         preferences = UserPreferences(self._settings)
         self._set_zoom(preferences.default_zoom)
-        if preferences.dark_theme:
-            QApplication.instance().setStyleSheet(DARK_STYLESHEET)
+        apply_ui_theme(QApplication.instance(), preferences.dark_theme)
+        self._icon_manager.set_color(icon_color_for(self))
+        self._refresh_rulers()
 
     def _show_preferences(self) -> None:
-        from rword.core.preferences import UserPreferences
+        from rword.core.preferences import UserPreferences, apply_ui_theme
         from rword.ui.dialogs.preferences import PreferencesDialog
 
         preferences = UserPreferences(self._settings)
         dialog = PreferencesDialog(preferences, self)
         if dialog.exec():
-            if preferences.dark_theme:
-                QApplication.instance().setStyleSheet(DARK_STYLESHEET)
-            else:
-                QApplication.instance().setStyleSheet("")
+            apply_ui_theme(QApplication.instance(), preferences.dark_theme)
             self._collaboration_manager().set_username(preferences.username)
             self._update_presence_label()
             self._icon_manager.set_color(icon_color_for(self))
@@ -3657,6 +3288,29 @@ class MainWindow(QMainWindow):
                 self._ai_run_and_apply(
                     lambda v=value, n=count: fn(client, v, n)
                 )
+
+    def _ai_legal_documents(self) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from rword.core.ai import capabilities
+        from rword.core.ai.session import document_context
+        from rword.ui.dialogs.legal_documents import LegalDocumentDialog
+
+        dialog = LegalDocumentDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        document = dialog.selected_document()
+        if document is None:
+            return
+        skill_section = f"# Skill: {document.phase}\n\n{document.raw}"
+        context = document_context(self._editor)
+        client = self._ai_client()
+        self._ai_run_and_apply(
+            lambda s=skill_section, c=context: capabilities.draft_legal_document(
+                client, s, c
+            ),
+            "replace_document",
+        )
 
     def _ai_write_like(self) -> None:
         from PySide6.QtWidgets import QInputDialog

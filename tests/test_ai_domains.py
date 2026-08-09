@@ -11,36 +11,6 @@ class FakeClient:
         return self.reply
 
 
-def test_draft_contract():
-    client = FakeClient()
-    capabilities.draft_contract(client, "compraventa de un vehículo")
-    assert "contrato" in client.last_messages[-1]["content"]
-
-
-def test_review_clauses():
-    client = FakeClient()
-    capabilities.review_clauses(client, "cláusulas del contrato")
-    assert "abusivas" in client.last_messages[-1]["content"]
-
-
-def test_legal_risks():
-    client = FakeClient()
-    capabilities.legal_risks(client, "contrato")
-    assert "riesgos legales" in client.last_messages[-1]["content"]
-
-
-def test_explain_law():
-    client = FakeClient()
-    capabilities.explain_law(client, "artículo 1")
-    assert "artículo" in client.last_messages[-1]["content"]
-
-
-def test_compare_contracts():
-    client = FakeClient()
-    capabilities.compare_contracts(client, "contrato A", "contrato B")
-    assert "Contrato B" in client.last_messages[-1]["content"]
-
-
 def test_format_code():
     client = FakeClient()
     capabilities.format_code(client, "x=1")
@@ -112,11 +82,12 @@ def test_research_and_bibliography():
 
 
 def test_specialized_menu_built(main_window):
-    assert "&Legal" in main_window._ai_specialized
+    assert "&Legal" not in main_window._ai_specialized
     assert "&Investigación" in main_window._ai_specialized
     assert "&Programación" not in main_window._ai_specialized
     assert "&Educación" not in main_window._ai_specialized
     assert "&Negocios" not in main_window._ai_specialized
+    assert main_window.legal_documents_action.text() == "Legal"
 
 
 def test_ai_domain_context(main_window):

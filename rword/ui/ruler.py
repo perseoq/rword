@@ -5,9 +5,11 @@ from __future__ import annotations
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QColor,
+    QFont,
     QMouseEvent,
     QPainter,
     QPaintEvent,
+    QPalette,
     QPen,
     QPolygon,
 )
@@ -18,13 +20,6 @@ from rword.core.pages import MM_TO_PX, current_page_setup
 
 _THICKNESS = 24
 _HIT_TOLERANCE = 8
-
-_BG = QColor("#eaeaea")
-_PAGE_BAND = QColor("#ffffff")
-_MARGIN_ZONE = QColor("#f0f0f0")
-_EDGE = QColor("#808080")
-_MARKER = QColor("#1a1a1a")
-_MARGIN_LINE = QColor("#909090")
 
 
 def _doc_x(zoom: float, page_left: float, screen_x: float) -> float:
@@ -53,6 +48,40 @@ class Ruler(QWidget):
         self.setMouseTracking(True)
 
     # --- utilidades --------------------------------------------------------
+
+    def _ui_colors(self) -> dict[str, QColor]:
+        """Colores de la regla adaptados al tema de la aplicación y del papel."""
+        text = self.palette().color(QPalette.ColorRole.Text)
+        dark = text.lightness() > 128
+        band = self._editor.palette().color(QPalette.ColorRole.Base)
+        ink = (
+            QColor("#374151")
+            if band.lightness() > 128
+            else QColor("#d6dae2")
+        )
+        if dark:
+            return {
+                "bg": QColor("#232833"),
+                "margin": QColor("#262c39"),
+                "edge": QColor("#4b5563"),
+                "margin_line": QColor("#5b6472"),
+                "band": band,
+                "marker": ink,
+                "tick": ink,
+                "number": ink,
+                "cursor": QColor("#f87171"),
+            }
+        return {
+            "bg": QColor("#f3f4f6"),
+            "margin": QColor("#eceff3"),
+            "edge": QColor("#b6bcc6"),
+            "margin_line": QColor("#9aa1ab"),
+            "band": band,
+            "marker": ink,
+            "tick": ink,
+            "number": ink,
+            "cursor": QColor("#dc2626"),
+        }
 
     def _zoom(self) -> float:
         return self._editor.zoom() / 100.0
@@ -118,7 +147,15 @@ class Ruler(QWidget):
         medium_mm = 5 if minor_mm <= 5 else 10
         major_mm = 10
 
-        painter.setPen(QPen(_MARKER, 1))
+        colors = self._ui_colors()
+        tick_pen = QPen(
+            colors["tick"], 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap
+        )
+        painter.setPen(tick_pen)
+        font = QFont(self.font())
+        font.setPixelSize(9)
+        painter.setFont(font)
+
         ticks = int(length_mm / minor_mm) + 1
         for index in range(ticks):
             value_mm = index * minor_mm
@@ -136,17 +173,32 @@ class Ruler(QWidget):
             if axis == "h":
                 painter.drawLine(int(pos), thickness, int(pos), thickness - height)
                 if value_mm % major_mm == 0:
-                    painter.setPen(QColor("#444444"))
+                    painter.setPen(QPen(colors["number"], 1))
                     painter.drawText(
-                        int(pos) + 2, thickness - height - 2, str(int(value_mm))
+                        QRect(
+                            int(pos) - 14,
+                            0,
+                            28,
+                            thickness - height,
+                        ),
+                        Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom,
+                        str(int(value_mm)),
                     )
-                    painter.setPen(QPen(_MARKER, 1))
+                    painter.setPen(tick_pen)
             else:
                 painter.drawLine(thickness - height, int(pos), thickness, int(pos))
                 if value_mm % major_mm == 0:
-                    painter.setPen(QColor("#444444"))
-                    painter.drawText(2, int(pos) - 2, str(int(value_mm)))
-                    painter.setPen(QPen(_MARKER, 1))
+                    painter.setPen(QPen(colors["number"], 1))
+                    painter.save()
+                    painter.translate(3, int(pos))
+                    painter.rotate(-90)
+                    painter.drawText(
+                        QRect(-16, -8, 16, 16),
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                        str(int(value_mm)),
+                    )
+                    painter.restore()
+                    painter.setPen(tick_pen)
 
     # --- interacción (por defecto sin acción) ------------------------------
 
@@ -170,7 +222,8 @@ class HRuler(Ruler):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), _BG)
+        colors = self._ui_colors()
+        painter.fillRect(self.rect(), colors["bg"])
 
         page_left = self._page_left()
         page_width = self._page_width()
@@ -182,7 +235,7 @@ class HRuler(Ruler):
         margin_l = page_left + setup.left_margin_mm * mm_px
         margin_r = page_right - setup.right_margin_mm * mm_px
 
-        painter.fillRect(QRect(page_left, 0, page_width, self.height()), _PAGE_BAND)
+        painter.fillRect(QRect(page_left, 0, page_width, self.height()), colors["band"])
         if margin_l > page_left:
             self._fill_zone(
                 painter, page_left, int(margin_l - page_left)
@@ -190,11 +243,11 @@ class HRuler(Ruler):
         if margin_r < page_right:
             self._fill_zone(painter, int(margin_r), int(page_right - margin_r))
 
-        painter.setPen(QPen(_EDGE, 1))
+        painter.setPen(QPen(colors["edge"], 1))
         painter.drawLine(page_left, 0, page_left, self.height())
         painter.drawLine(page_right - 1, 0, page_right - 1, self.height())
 
-        painter.setPen(QPen(_MARGIN_LINE, 1))
+        painter.setPen(QPen(colors["margin_line"], 1))
         painter.drawLine(int(margin_l), 0, int(margin_l), self.height())
         painter.drawLine(int(margin_r), 0, int(margin_r), self.height())
 
@@ -210,23 +263,24 @@ class HRuler(Ruler):
         self._draw_left_marker(painter, left_x, indents["left"] == indents["first_line"])
         self._draw_right_marker(painter, right_x)
 
-        painter.setPen(QPen(_MARKER, 1))
+        painter.setPen(QPen(colors["marker"], 1))
         for tab in paragraph.tab_stops(self._editor):
             x = page_left + tab.position * zoom
             painter.drawLine(int(x), 0, int(x), 8)
             painter.drawLine(int(x), 8, int(x) + 6, 8)
 
-        painter.setPen(QColor("#c00000"))
+        painter.setPen(QPen(colors["cursor"], 1))
         cursor_x = page_left + self._editor.cursorRect().x()
         painter.drawLine(cursor_x, 0, cursor_x, self.height())
         painter.end()
 
     def _fill_zone(self, painter: QPainter, x: int, width: int) -> None:
-        painter.fillRect(QRect(x, 0, width, self.height()), _MARGIN_ZONE)
+        painter.fillRect(QRect(x, 0, width, self.height()), self._ui_colors()["margin"])
 
     def _draw_first_line(self, painter: QPainter, x: float, left_x: float) -> None:
-        painter.setBrush(_MARKER)
-        painter.setPen(QPen(_MARKER, 1))
+        marker = self._ui_colors()["marker"]
+        painter.setBrush(marker)
+        painter.setPen(QPen(marker, 1))
         if abs(x - left_x) < 2:
             painter.drawPolygon(_triangle(0, int(x) - 4, int(x) + 4, 7))
         else:
@@ -234,8 +288,9 @@ class HRuler(Ruler):
             painter.drawPolygon(_triangle(7, int(left_x) - 4, int(left_x) + 4, 0))
 
     def _draw_left_marker(self, painter: QPainter, x: float, combined: bool) -> None:
-        painter.setBrush(_MARKER)
-        painter.setPen(QPen(_MARKER, 1))
+        marker = self._ui_colors()["marker"]
+        painter.setBrush(marker)
+        painter.setPen(QPen(marker, 1))
         if combined:
             painter.drawRect(int(x) - 3, self.height() - 6, 6, 6)
         else:
@@ -249,8 +304,9 @@ class HRuler(Ruler):
             )
 
     def _draw_right_marker(self, painter: QPainter, x: float) -> None:
-        painter.setBrush(_MARKER)
-        painter.setPen(QPen(_MARKER, 1))
+        marker = self._ui_colors()["marker"]
+        painter.setBrush(marker)
+        painter.setPen(QPen(marker, 1))
         painter.drawPolygon(
             _triangle(
                 self.height() - 6,
@@ -383,7 +439,8 @@ class VRuler(Ruler):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), _BG)
+        colors = self._ui_colors()
+        painter.fillRect(self.rect(), colors["bg"])
 
         page_top = self._page_top()
         page_height = self._page_height()
@@ -394,7 +451,7 @@ class VRuler(Ruler):
         margin_top = page_top + setup.top_margin_mm * mm_px
         margin_bottom = page_bottom - setup.bottom_margin_mm * mm_px
 
-        painter.fillRect(QRect(0, page_top, self.width(), page_height), _PAGE_BAND)
+        painter.fillRect(QRect(0, page_top, self.width(), page_height), colors["band"])
         if margin_top > page_top:
             self._fill_zone(
                 painter, page_top, int(margin_top - page_top)
@@ -404,11 +461,11 @@ class VRuler(Ruler):
                 painter, int(margin_bottom), int(page_bottom - margin_bottom)
             )
 
-        painter.setPen(QPen(_EDGE, 1))
+        painter.setPen(QPen(colors["edge"], 1))
         painter.drawLine(0, page_top, self.width(), page_top)
         painter.drawLine(0, page_bottom - 1, self.width(), page_bottom - 1)
 
-        painter.setPen(QPen(_MARGIN_LINE, 1))
+        painter.setPen(QPen(colors["margin_line"], 1))
         painter.drawLine(0, int(margin_top), self.width(), int(margin_top))
         painter.drawLine(0, int(margin_bottom), self.width(), int(margin_bottom))
 
@@ -416,14 +473,15 @@ class VRuler(Ruler):
             painter, page_height / mm_px, "v", page_top, mm_px, self.width()
         )
 
-        painter.setBrush(_MARKER)
-        painter.setPen(QPen(_MARKER, 1))
+        marker = colors["marker"]
+        painter.setBrush(marker)
+        painter.setPen(QPen(marker, 1))
         painter.drawPolygon(_triangle(int(margin_top) - 4, 0, 8, int(margin_top)))
         painter.drawPolygon(_triangle(int(margin_bottom) - 4, 0, 8, int(margin_bottom)))
         painter.end()
 
     def _fill_zone(self, painter: QPainter, y: int, height: int) -> None:
-        painter.fillRect(QRect(0, y, self.width(), height), _MARGIN_ZONE)
+        painter.fillRect(QRect(0, y, self.width(), height), self._ui_colors()["margin"])
 
     def _handles(self):
         setup = self._setup()

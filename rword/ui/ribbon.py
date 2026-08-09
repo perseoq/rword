@@ -43,6 +43,7 @@ class RibbonGroup(QWidget):
         self._caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._caption.setStyleSheet(
             "font-size: 9px; color: #6b7280; border-top: 1px solid #d1d5db;"
+            "padding-top: 3px;"
         )
         self._layout.addWidget(self._caption)
         self.setMaximumHeight(_CONTENT_HEIGHT + _CAPTION_HEIGHT)
@@ -66,7 +67,6 @@ class RibbonGroup(QWidget):
             )
             button.setIconSize(QSize(_LICON, _LICON))
             button.setFixedSize(58, _CONTENT_HEIGHT - 12)
-            button.setStyleSheet("font-size: 9px;")
             self._row.addWidget(button, 0, Qt.AlignmentFlag.AlignTop)
         else:
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -91,7 +91,6 @@ class RibbonGroup(QWidget):
         )
         button.setIconSize(QSize(_RICON, _RICON))
         button.setFixedHeight(_RICON + 8)
-        button.setStyleSheet("font-size: 9px;")
         self._row.addWidget(button, 0, Qt.AlignmentFlag.AlignTop)
         return button
 
@@ -159,6 +158,7 @@ class RibbonTab(QWidget):
 
     def _make_chevron(self, icon_name: str) -> QToolButton:
         button = QToolButton(self)
+        button.setObjectName("chevron")
         button.setIcon(self._icon_manager.make_icon(icon_name, _RICON))
         button.setIconSize(QSize(_RICON, _RICON))
         button.setFixedSize(22, 22)
@@ -213,12 +213,14 @@ class RibbonBar(QWidget):
 
     def __init__(self, icon_manager: IconManager | None = None, parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("ribbonBar")
         self._icon_manager = icon_manager or IconManager()
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
 
         self._tab_bar = QTabBar(self)
+        self._tab_bar.setObjectName("ribbonTabs")
         self._tab_bar.setDocumentMode(True)
         self._tab_bar.setExpanding(False)
         self._tab_bar.setMinimumHeight(28)
@@ -228,11 +230,6 @@ class RibbonBar(QWidget):
         self._layout.addWidget(self._stack)
         self._tab_bar.currentChanged.connect(self._stack.setCurrentIndex)
         self.setFixedHeight(28 + _CONTENT_HEIGHT + _CAPTION_HEIGHT)
-
-        self.setStyleSheet(
-            "QTabBar::tab { padding: 5px 14px; font-size: 10px; }"
-            "QTabBar::tab:selected { font-weight: bold; }"
-        )
 
     def add_tab(self, title: str) -> RibbonTab:
         tab = RibbonTab(self._icon_manager, self._stack)

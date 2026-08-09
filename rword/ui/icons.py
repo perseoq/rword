@@ -16,7 +16,7 @@ def _svg(inner: str) -> str:
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" '
         'viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
         f"{inner}</svg>"
     )
 
@@ -54,6 +54,12 @@ LUCIDE_ICONS: dict[str, str] = {
     "zoom-out": _svg("<circle cx='11' cy='11' r='8'/>" + _p("m21 21-4.3-4.3") + _p("M8 11h6")),
     "percent": _svg(_p("M19 5 5 19") + "<circle cx='6.5' cy='6.5' r='2.5'/><circle cx='17.5' cy='17.5' r='2.5'/>"),
     "maximize": _svg(_p("M8 3H5a2 2 0 0 0-2 2v3") + _p("M21 8V5a2 2 0 0 0-2-2h-3") + _p("M3 16v3a2 2 0 0 0 2 2h3") + _p("M16 21h3a2 2 0 0 0 2-2v-3")),
+    "chevron-up": _svg(_p("m18 15-6-6-6 6")),
+    "chevron-down": _svg(_p("m6 9 6 6 6-6")),
+    "chevrons-up": _svg(_p("m7 11 5-5 5 5") + _p("m7 18 5-5 5 5")),
+    "chevrons-down": _svg(_p("m7 6 5 5 5-5") + _p("m7 13 5 5 5-5")),
+    "chevrons-left": _svg(_p("m11 17-5-5 5-5") + _p("m18 17-5-5 5-5")),
+    "chevrons-right": _svg(_p("m6 17 5-5-5-5") + _p("m13 17 5-5-5-5")),
     "scan": _svg(_p("M3 7V5a2 2 0 0 1 2-2h2") + _p("M17 3h2a2 2 0 0 1 2 2v2") + _p("M21 17v2a2 2 0 0 1-2 2h-2") + _p("M7 21H5a2 2 0 0 1-2-2v-2") + _p("M3 12h18")),
     # Fuente
     "bold": _svg(_p("M14 12a4 4 0 0 0 0-8H6v8") + _p("M15 20a4 4 0 0 0 0-8H6v8z")),
@@ -230,4 +236,8 @@ class IconManager:
 
 
 def icon_color_for(widget: QWidget) -> str:
-    return widget.palette().color(QPalette.ColorRole.Text).name()
+    """Color de icono según el tema: gris pizarra en claro, claro en oscuro."""
+    color = widget.palette().color(QPalette.ColorRole.Text)
+    if color.lightness() > 128:
+        return "#cbd5e1"
+    return "#475569"

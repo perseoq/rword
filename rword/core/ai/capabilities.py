@@ -225,53 +225,40 @@ def answer_question(client, document: str, question: str) -> str:
 
 # --- Dominios especializados: Legal ----------------------------------------
 
-def draft_contract(client, instruction: str, context: str = "") -> str:
-    return _chat(
-        client,
-        f"Redacta un contrato profesional a partir de la instrucción: {instruction}",
-        context,
+def draft_legal_document(client, skill_section: str, source_text: str = "") -> str:
+    """Redacta un documento jurídico según el catálogo de SKILL.md.
+
+    Toma los datos de las partes (actor, demandado, abogados, juzgado,
+    expediente, etc.) del documento abierto cuando los contiene; los que
+    falten se dejan como placeholders.
+    """
+    system = (
+        "Eres un redactor de documentos jurídicos mexicanos. Aplica el "
+        "formato forense que se indica (encabezado y autoridad en MAYÚSCULAS "
+        "con alineación derecha, cuerpo justificado con sangría, secciones "
+        "centradas, petitorio con PRIMERO./SEGUNDO., cierre con PROTESTO LO "
+        "NECESARIO, fuente Times New Roman 12). Responde únicamente con el "
+        "documento redactado, sin explicaciones ni advertencias."
     )
-
-
-def review_clauses(client, contract_text: str) -> str:
-    return _chat(
-        client,
-        "Revisa el contrato y detecta cláusulas abusivas o riesgos legales. "
-        "Devuelve una lista con recomendaciones.",
-        contract_text,
-        temperature=0.2,
+    data_block = (
+        f"\n\nDATOS DEL CASO (documento previo del que debes tomar los datos):\n"
+        f"{source_text}" if source_text.strip() else ""
     )
-
-
-def legal_risks(client, contract_text: str) -> str:
-    return _chat(
-        client,
-        "Identifica los riesgos legales del siguiente contrato:",
-        contract_text,
-        temperature=0.2,
+    user = (
+        f"CATÁLOGO DEL DOCUMENTO A REDACTAR:\n{skill_section}"
+        f"{data_block}\n\n"
+        "Redacta el documento completo siguiendo el catálogo anterior. Usa los "
+        "datos del caso (actor, demandado, abogados y cédulas autorizados, "
+        "correo, juzgado, expediente, domicilios) para rellenar el escrito. "
+        "Para cualquier dato que no aparezca en el documento previo, deja un "
+        "placeholder como [____], [NOMBRE], [DOMICILIO], [EXPEDIENTE] o "
+        "[FECHA] según corresponda."
     )
-
-
-def explain_law(client, article: str) -> str:
-    return _chat(client, "Explica en términos sencillos el siguiente artículo o norma:", article)
-
-
-def compare_contracts(client, text_a: str, text_b: str) -> str:
-    return _chat(
-        client,
-        "Compara los dos contratos, resume las diferencias importantes "
-        "y sugiere un documento unificado.",
-        f"Contrato A:\n{text_a}\n\nContrato B:\n{text_b}",
-        temperature=0.2,
-    )
-
-
-def summarize_contract(client, contract_text: str) -> str:
-    return _chat(
-        client,
-        "Resume el contrato destacando las obligaciones de cada parte:",
-        contract_text,
-    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+    return client.chat(messages, temperature=0.3, max_tokens=4096)
 
 
 # --- Programación ----------------------------------------------------------
